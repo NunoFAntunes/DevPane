@@ -1,0 +1,61 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "devpane"
+version = "0.0.1"
+description = "Linux drop-down notetaking pane for developers"
+readme = "README.md"
+license = { text = "GPL-3.0-or-later" }
+requires-python = ">=3.11"
+authors = [{ name = "Nuno Antunes", email = "nuno.f.antunes@inov.pt" }]
+keywords = ["linux", "notes", "todo", "gtk", "drop-down", "developer"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Environment :: X11 Applications :: GTK",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business",
+    "Topic :: Text Editors",
+]
+dependencies = [
+    "PyGObject>=3.50",
+]
+
+[project.optional-dependencies]
+x11 = ["python-xlib>=0.33"]
+dev = [
+    "ruff>=0.6",
+    "mypy>=1.10",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[project.scripts]
+devpaned = "devpane.daemon.app:main"
+devpane-toggle = "devpane.cli.toggle:main"
+
+[project.urls]
+Homepage = "https://github.com/nfantunes/DevPane"
+Issues = "https://github.com/nfantunes/DevPane/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/devpane"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/devpane",
+    "data",
+    "docs",
+    "scripts",
+    "packaging",
+    "tests",
+    "README.md",
+    "LICENSE",
+    "pyproject.toml",
+]
