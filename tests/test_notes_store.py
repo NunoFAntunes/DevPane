@@ -60,3 +60,31 @@ def test_path_for_within_notes_dir(xdg_tmp: Path) -> None:
     p = notes.path_for("foo")
     assert p.parent == notes.notes_dir()
     assert p.name == "foo.md"
+
+
+def test_cleanup_orphans_removes_stale_tmp_files(xdg_tmp: Path) -> None:
+    d = notes.notes_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    # Simulate two crashed atomic writes.
+    (d / ".scratch.md.abc.tmp").write_text("partial")
+    (d / ".other.md.xyz.tmp").write_text("partial")
+    # And a real note that must NOT be deleted.
+    (d / "real.md").write_text("keep me")
+    removed = notes.cleanup_orphans()
+    assert removed == 2
+    assert (d / "real.md").exists()
+    assert not any(p.name.endswith(".tmp") for p in d.iterdir())
+
+
+def test_cleanup_orphans_with_no_dir(xdg_tmp: Path) -> None:
+    # No notes_dir created — should be a no-op, not an error.
+    assert notes.cleanup_orphans() == 0
+
+
+def test_cleanup_orphans_leaves_unrelated_dotfiles(xdg_tmp: Path) -> None:
+    d = notes.notes_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    (d / ".gitkeep").write_text("")
+    (d / ".scratch.md.abc.tmp").write_text("x")
+    assert notes.cleanup_orphans() == 1
+    assert (d / ".gitkeep").exists()

@@ -54,7 +54,12 @@ For the full architecture, milestones, and verification steps, see
 
 ## Project status
 
-Pre-alpha. Implementation follows the milestones in [PLAN.md](PLAN.md).
+Alpha (`v0.1.0`). Functionally complete: every milestone except M7
+(packaging / distribution) is done. See [CHANGELOG.md](../CHANGELOG.md)
+for the release notes and [LIMITATIONS.md](LIMITATIONS.md) for the list
+of things we deliberately don't do yet.
+
+Implementation follows the milestones in [PLAN.md](PLAN.md).
 
 | Milestone | Status |
 |-----------|--------|
@@ -65,13 +70,14 @@ Pre-alpha. Implementation follows the milestones in [PLAN.md](PLAN.md).
 | M4 — Platform adapters (layer-shell, X11) | ✅ done |
 | M5 — Editor UX | ✅ done |
 | M6 — Polish + animations | ✅ done |
-| M7 — Distribution (Flatpak, AUR) | ⏳ next |
-| M8 — Hardening + release | ⏳ |
+| M7 — Distribution (Flatpak, AUR) | ⏸ deferred |
+| M8 — Hardening + release | ✅ done |
 
 For the storage layer's on-disk format and inspection commands, see
 [STORAGE.md](STORAGE.md). For the IPC protocol the CLI speaks to the daemon,
 see [IPC.md](IPC.md). For the GTK window and asyncio↔GLib bridge, see
-[GUI.md](GUI.md).
+[GUI.md](GUI.md). For known gaps and workarounds, see
+[LIMITATIONS.md](LIMITATIONS.md).
 
 ## Repository map
 

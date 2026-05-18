@@ -2,7 +2,8 @@
 
 This document explains the runtime architecture in depth. For the
 step-by-step build order, see [PLAN.md](PLAN.md). For a high-level pitch, see
-[OVERVIEW.md](OVERVIEW.md).
+[OVERVIEW.md](OVERVIEW.md). For the things this design *doesn't* cover and
+why, see [LIMITATIONS.md](LIMITATIONS.md).
 
 ## Two-process model
 
@@ -130,10 +131,15 @@ Implementation: `daemon/single_instance.py`.
 ## Failure modes and recovery
 
 - **Daemon killed mid-edit.** Atomic writes mean the on-disk file is never
-  half-written. The 2-second autosave bounds data loss.
+  half-written. The 2-second autosave bounds data loss. On next startup,
+  `notes.cleanup_orphans()` (M8) removes any leftover `.tmp` files from a
+  crashed write before the daemon binds the socket.
 - **Corrupt index.** `reindex_all()` is idempotent; the index is deleted and
   rebuilt from the filesystem.
 - **Compositor restart (Wayland).** The daemon reconnects; the window is
   recreated on next `show`.
 - **`gtk4-layer-shell` missing.** The Wayland fallback adapter is used
   without warning to the user.
+- **Post-mortem.** All daemon log output (stderr + a rotating file at
+  `$XDG_STATE_HOME/devpane/devpane.log`, 1 MB × 3 rotations) is timestamped
+  and PID-stamped so you can correlate across runs.

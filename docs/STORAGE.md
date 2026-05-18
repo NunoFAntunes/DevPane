@@ -15,10 +15,15 @@ $XDG_DATA_HOME/devpane/                  # default: ~/.local/share/devpane/
 └── index.sqlite                         # derived; rebuildable
 
 $XDG_STATE_HOME/devpane/                 # default: ~/.local/state/devpane/
-└── log                                  # daemon log (M8)
+├── devpane.log                          # current daemon log
+└── devpane.log.{1,2,3}                  # rotated logs (1 MB each)
 
 $XDG_RUNTIME_DIR/devpane/                # 0700, ephemeral
-└── devpane.sock                         # IPC socket (M2)
+├── devpane.sock                         # IPC socket
+└── devpane.pid                          # single-instance flock target
+
+$XDG_CONFIG_HOME/devpane/                # default: ~/.config/devpane/
+└── prefs.json                           # height ratio, last-open note, animate
 ```
 
 Path resolution lives in [`store/paths.py`](../src/devpane/store/paths.py)
@@ -50,6 +55,12 @@ written:
 4. On any exception, the temp file is removed.
 
 Worst-case data loss is bounded by the autosave debounce window (2 seconds).
+
+If the daemon is killed between step 2 and step 3, the `.tmp` file is left
+behind but the original note (if any) is untouched. On next startup,
+`notes.cleanup_orphans()` (M8) sweeps the notes directory and removes any
+`.<name>.<rand>.tmp` files. The orphan content is discarded — the original
+write didn't complete, so its body is partial / not durable.
 
 ## Index schema
 

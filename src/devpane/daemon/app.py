@@ -184,20 +184,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.set_defaults(mode=MODE_AUTO)
     args = parser.parse_args(argv)
 
-    setup_logging(args.log_level)
-
     if args.check:
+        setup_logging(args.log_level)
         paths.ensure_dirs()
         info = detect()
         print(f"devpaned {__version__}: skeleton OK")
         print(f"  socket:      {paths.socket_path()}")
         print(f"  notes:       {paths.notes_dir()}")
+        print(f"  log:         {paths.log_path()}")
         print(f"  session:     {info.session.value}")
         print(f"  compositor:  {info.compositor.value}")
         print(f"  layer-shell: {'yes' if info.has_layer_shell else 'no'}")
         return 0
 
     paths.ensure_dirs()
+    setup_logging(args.log_level, log_file=paths.log_path())
+    orphans = notes.cleanup_orphans()
+    if orphans:
+        _log.info("startup: removed %d orphan temp file(s)", orphans)
     pidfile = paths.runtime_dir() / "devpane.pid"
 
     try:

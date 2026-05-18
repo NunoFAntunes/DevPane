@@ -47,7 +47,7 @@ def socket_path() -> Path:
 
 
 def log_path() -> Path:
-    return state_dir() / "log"
+    return state_dir() / "devpane.log"
 
 
 def ensure_dirs() -> None:

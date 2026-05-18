@@ -90,3 +90,27 @@ def delete(name: str) -> None:
 
 def mtime(name: str) -> float:
     return path_for(name).stat().st_mtime
+
+
+def cleanup_orphans() -> int:
+    """Remove leftover ``.<name>.<rand>.tmp`` files from crashed atomic writes.
+
+    Atomic write uses ``tempfile.mkstemp`` + ``os.replace``; if the daemon
+    is killed between flush and replace, the temp file is orphaned. The
+    original note (if any) is untouched, so we just delete the orphans.
+    Returns the number removed.
+    """
+    d = notes_dir()
+    if not d.is_dir():
+        return 0
+    count = 0
+    for p in d.iterdir():
+        if not p.is_file():
+            continue
+        if p.name.startswith(".") and p.name.endswith(".tmp"):
+            try:
+                p.unlink()
+                count += 1
+            except OSError:
+                pass
+    return count

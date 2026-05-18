@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "devpane"
-version = "0.0.1"
+version = "0.1.0"
 description = "Linux drop-down notetaking pane for developers"
 readme = "README.md"
 license = { text = "GPL-3.0-or-later" }
@@ -12,7 +12,7 @@ requires-python = ">=3.11"
 authors = [{ name = "Nuno Antunes", email = "nuno.f.antunes@inov.pt" }]
 keywords = ["linux", "notes", "todo", "gtk", "drop-down", "developer"]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
     "Environment :: X11 Applications :: GTK",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",

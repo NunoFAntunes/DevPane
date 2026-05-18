@@ -5,6 +5,8 @@ from __future__ import annotations
 import subprocess
 import sys
 
+import pytest
+
 import devpane
 from devpane.cli import toggle
 from devpane.daemon import app
@@ -19,7 +21,8 @@ def test_daemon_main_runs() -> None:
     assert app.main(["--check"]) == 0
 
 
-def test_toggle_main_runs() -> None:
+def test_toggle_main_runs(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("devpane.cli.toggle.send_sync", lambda *_a, **_kw: {"ok": True, "data": {}})
     assert toggle.main(["status"]) == 0
 
 
