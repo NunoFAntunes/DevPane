@@ -9,7 +9,7 @@ description = "Linux drop-down notetaking pane for developers"
 readme = "README.md"
 license = { text = "GPL-3.0-or-later" }
 requires-python = ">=3.11"
-authors = [{ name = "Nuno Antunes", email = "nuno.f.antunes@inov.pt" }]
+authors = [{ name = "Nuno Antunes", email = "nunofcg.antunes@yahoo.com" }]
 keywords = ["linux", "notes", "todo", "gtk", "drop-down", "developer"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -59,6 +59,7 @@ include = [
     "packaging",
     "tests",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE",
     "pyproject.toml",
 ]

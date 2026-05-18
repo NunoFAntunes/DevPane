@@ -34,9 +34,9 @@ unprivileged clients, and GTK 4 mirrors that limitation. The compositor
 owns this.
 
 **Workaround.** Configure your compositor to place DevPane on a
-specific output. On Sway: `for_window [app_id="com.devpane.Daemon"]
+specific output. On Sway: `for_window [app_id="io.github.nfantunes.DevPane"]
 move container to output <name>`. On Hyprland: `windowrule = monitor
-<name>, ^(com.devpane.Daemon)$`.
+<name>, ^(io.github.nfantunes.DevPane)$`.
 
 **Scoped:** M6. **Could be revisited if:** the
 `org.freedesktop.portal.GlobalShortcuts` portal gains output-targeting
@@ -66,8 +66,8 @@ focus management. M4 favored portability; the dock hint is honored by
 most modern X11 WMs (i3, openbox, xfwm4, KWin under X11).
 
 **Workaround.** Use a Wayland session with `gtk4-layer-shell` for the
-best UX. On i3, add a `for_window [class="com.devpane.Daemon"] floating
-enable` rule.
+best UX. On i3, add a `for_window [class="io.github.nfantunes.DevPane"]
+floating enable` rule.
 
 **Scoped:** M4. **Could be revisited if:** an X11 user reports the dock
 hint is insufficient.
@@ -118,33 +118,65 @@ GNOME may briefly mis-focus.
 
 ## Persistence
 
-### Prefs are JSON, not GSettings
+### Prefs are JSON, not GSettings (still)
 
 **What.** User prefs (`height_ratio`, `last_note`, `animate`) are stored
-in `$XDG_CONFIG_HOME/devpane/prefs.json`, not a GSettings schema.
+in `$XDG_CONFIG_HOME/devpane/prefs.json`, not read from GSettings —
+even though the GSettings schema is now shipped by the packaging.
 
-**Why.** GSettings requires a compiled gschema that must be installed
-under `glib-2.0/schemas/`. That's a packaging concern (M7+); JSON works
-without any install step.
+**Why.** Migrating the runtime to GSettings means the dev workflow
+(running from `src/`) breaks unless schemas are compiled locally and
+`GSETTINGS_SCHEMA_DIR` is set. We shipped the schema XML in M7 so
+distro packages install it and so the schema ID is reserved, but the
+code still reads/writes JSON.
 
 **Workaround.** Edit the JSON file directly (the daemon re-reads it on
 each startup).
 
-**Scoped:** M6. **Will revisit in:** M7 when packaging adds the schema
-compile step.
+**Scoped:** M6/M7. **Will revisit in:** v0.2 when we add a JSON↔GSettings
+shim that prefers GSettings if available, with one-time migration from
+JSON.
 
 ## Distribution
 
-### Not packaged yet
+### Packaging files shipped, not published
 
-**What.** No Flatpak manifest, AUR PKGBUILD, or systemd user unit are
-shipped. Run from a source checkout.
+**What.** As of v0.1.0 the repo includes an Arch PKGBUILD, a systemd
+user unit, an XDG autostart `.desktop`, AppStream metainfo, a
+placeholder SVG icon, a GSettings schema, and a Flatpak manifest. None
+have been **published** — the PKGBUILD isn't pushed to the AUR and the
+Flatpak isn't on Flathub.
 
-**Workaround.** See [CONTRIBUTING.md](CONTRIBUTING.md) for the
-source-tree setup.
+**Workaround.** Build locally:
 
-**Scoped:** M7 (skipped for now per project owner). **Will revisit in:**
-M7 if/when picked up.
+- Arch: `cd packaging/arch && makepkg -si`
+- Flatpak: `flatpak-builder --user --install build-dir
+  packaging/flatpak/io.github.nfantunes.DevPane.yml`
+
+**Scoped:** M7. **Will revisit in:** v0.1.x when the maintainer is
+ready to commit to AUR + Flathub upkeep.
+
+### Flatpak is a skeleton
+
+**What.** The Flatpak manifest builds locally and produces a working
+app, but it's not Flathub-ready: no screenshots in the AppStream
+metainfo, no designed icon, no `flatpak run-checker` pass, and the
+`sha256` for the `gtk4-layer-shell` module source is a placeholder.
+
+**Workaround.** Replace the `sha256: 00000...` line in the manifest with
+the real hash (`curl -sL <url> | sha256sum`) before building.
+
+**Scoped:** M7.
+
+### Placeholder app icon
+
+**What.** `data/icons/.../io.github.nfantunes.DevPane.svg` is a
+geometric placeholder, not a designed icon.
+
+**Workaround.** Replace the SVG with a proper icon before any public
+release. The package builds and installs it identically.
+
+**Scoped:** M7.
 
 ### Tests under non-system Python skip GUI paths
 

@@ -1,0 +1,7 @@
+.SRCINFO is generated at release time via:
+
+    cd packaging/arch
+    makepkg --printsrcinfo > .SRCINFO
+
+It's intentionally not committed to git because it changes with every
+version bump. Submit both PKGBUILD and .SRCINFO when pushing to the AUR.

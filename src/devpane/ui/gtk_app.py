@@ -47,7 +47,7 @@ from devpane.ui.window import DropDownWindow, GtkController  # noqa: E402
 
 _log = logging.getLogger(__name__)
 
-APPLICATION_ID = "com.devpane.Daemon"
+APPLICATION_ID = "io.github.nfantunes.DevPane"
 
 # Type for the asyncio serve coroutine the daemon hands us:
 # ``serve(controller, stop_event)`` returns the daemon exit code.

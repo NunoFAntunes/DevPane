@@ -1,5 +1,39 @@
 # Contributing to DevPane
 
+## Installation (end users)
+
+If you just want to *use* DevPane, prefer a package over a source
+checkout. The packaging files live under [`packaging/`](../packaging).
+
+**Arch (AUR / manual):**
+
+```sh
+cd packaging/arch
+makepkg -si
+```
+
+Then bind a hotkey to `devpane-toggle` in your DE — see
+[HOTKEY-SETUP.md](HOTKEY-SETUP.md). Enable autostart with:
+
+```sh
+systemctl --user enable --now devpane.service
+```
+
+or rely on the XDG autostart entry installed at
+`/etc/xdg/autostart/io.github.nfantunes.DevPane.desktop`.
+
+**Flatpak (local build, skeleton):**
+
+```sh
+flatpak install --user org.gnome.Platform//47 org.gnome.Sdk//47
+flatpak-builder --user --install --force-clean build-dir \
+    packaging/flatpak/io.github.nfantunes.DevPane.yml
+flatpak run io.github.nfantunes.DevPane
+```
+
+The Flatpak manifest is a working skeleton; not yet submitted to
+Flathub. See [LIMITATIONS.md](LIMITATIONS.md) for what's missing.
+
 ## Development setup
 
 Requires Python 3.11+, GTK 4, libadwaita, GtkSourceView 5, and PyGObject.

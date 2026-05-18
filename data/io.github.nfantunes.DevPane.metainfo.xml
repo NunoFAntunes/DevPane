@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AppStream metadata for DevPane. Used by software centers and by Flathub.
+  Required for Flathub submission; optional for distro packages but
+  installed alongside the .desktop file in case the user runs GNOME Software,
+  KDE Discover, etc.
+-->
+<component type="desktop-application">
+  <id>io.github.nfantunes.DevPane</id>
+  <metadata_license>MIT</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+
+  <name>DevPane</name>
+  <summary>Drop-down notetaking pane for developers</summary>
+
+  <description>
+    <p>
+      DevPane is a Linux-native drop-down notetaking app for developers.
+      Press a key, the pane slides down from the top of the screen; press
+      it again, the pane hides and your notes are persisted to disk as
+      plain markdown.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Instant toggle via a key you bind in your desktop environment.</li>
+      <li>Markdown editor with syntax highlighting and autosave.</li>
+      <li>Files-first storage — every note is a plain .md file you can grep, git, or sync.</li>
+      <li>Per-note cursor position survives hide, show, and daemon restart.</li>
+      <li>Layer-shell support on wlroots compositors (Sway, Hyprland, KDE Plasma 6) for true top-edge anchoring.</li>
+      <li>Full-text search index over your notes via SQLite + FTS5.</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">io.github.nfantunes.DevPane.desktop</launchable>
+
+  <url type="homepage">https://github.com/nfantunes/DevPane</url>
+  <url type="bugtracker">https://github.com/nfantunes/DevPane/issues</url>
+  <url type="vcs-browser">https://github.com/nfantunes/DevPane</url>
+
+  <developer id="io.github.nfantunes">
+    <name>Nuno Antunes</name>
+  </developer>
+
+  <content_rating type="oars-1.1" />
+
+  <categories>
+    <category>Office</category>
+    <category>Utility</category>
+    <category>TextEditor</category>
+  </categories>
+
+  <keywords>
+    <keyword>note</keyword>
+    <keyword>notes</keyword>
+    <keyword>markdown</keyword>
+    <keyword>dropdown</keyword>
+    <keyword>scratchpad</keyword>
+    <keyword>developer</keyword>
+  </keywords>
+
+  <recommends>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </recommends>
+
+  <releases>
+    <release version="0.1.0" date="2026-05-18">
+      <description>
+        <p>First functionally complete release.</p>
+        <ul>
+          <li>Drop-down markdown editor with autosave.</li>
+          <li>Layer-shell support on wlroots/KDE compositors.</li>
+          <li>Plain Wayland fallback for GNOME; X11 dock-type hints.</li>
+          <li>Per-note cursor position persisted across daemon restart.</li>
+          <li>Files-first storage with SQLite FTS5 search index.</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+</component>

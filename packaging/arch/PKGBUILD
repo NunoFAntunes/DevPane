@@ -1,0 +1,75 @@
+# Maintainer: Nuno Antunes <nunofcg.antunes@yahoo.com>
+pkgname=devpane
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Linux drop-down notetaking pane for developers"
+arch=('any')
+url="https://github.com/nfantunes/DevPane"
+license=('GPL-3.0-or-later')
+depends=(
+  'python'
+  'python-gobject'
+  'gtk4'
+  'libadwaita'
+  'gtksourceview5'
+)
+optdepends=(
+  'gtk4-layer-shell: true top-anchored drop-down on KDE Plasma 6 / Sway / Hyprland'
+  'python-xlib: better X11 window hints (DOCK type + ABOVE/SKIP_TASKBAR/SKIP_PAGER)'
+)
+makedepends=(
+  'python-build'
+  'python-installer'
+  'python-hatchling'
+  'python-wheel'
+)
+source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
+# Replace with the real sha256 at release time:
+#   updpkgsums
+sha256sums=('SKIP')
+
+build() {
+  cd "DevPane-$pkgver"
+  python -m build --wheel --no-isolation
+}
+
+check() {
+  cd "DevPane-$pkgver"
+  # The test suite requires pytest + pytest-asyncio in the build env.
+  # Skip during makepkg unless devs run it manually with --check.
+  if command -v pytest >/dev/null && python -c "import pytest_asyncio" 2>/dev/null; then
+    PYTHONPATH=src pytest -q
+  fi
+}
+
+package() {
+  cd "DevPane-$pkgver"
+
+  # Python wheel (entry points → /usr/bin/devpaned, /usr/bin/devpane-toggle).
+  python -m installer --destdir="$pkgdir" dist/*.whl
+
+  # XDG autostart entry — runs the daemon at session start on every DE.
+  install -Dm644 data/io.github.nfantunes.DevPane.desktop \
+    "$pkgdir/etc/xdg/autostart/io.github.nfantunes.DevPane.desktop"
+
+  # AppStream metadata so software centers list the app.
+  install -Dm644 data/io.github.nfantunes.DevPane.metainfo.xml \
+    "$pkgdir/usr/share/metainfo/io.github.nfantunes.DevPane.metainfo.xml"
+
+  # App icon.
+  install -Dm644 data/icons/hicolor/scalable/apps/io.github.nfantunes.DevPane.svg \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/io.github.nfantunes.DevPane.svg"
+
+  # systemd user unit — alternative to autostart for users who prefer it.
+  install -Dm644 packaging/systemd/devpane.service \
+    "$pkgdir/usr/lib/systemd/user/devpane.service"
+
+  # GSettings schema (shipped for forward compatibility; not yet read by
+  # the runtime in v0.1).
+  install -Dm644 data/gschemas/io.github.nfantunes.DevPane.gschema.xml \
+    "$pkgdir/usr/share/glib-2.0/schemas/io.github.nfantunes.DevPane.gschema.xml"
+
+  # License.
+  install -Dm644 LICENSE \
+    "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

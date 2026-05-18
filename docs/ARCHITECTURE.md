@@ -113,8 +113,8 @@ await a future. Headless mode (used by tests, CI, and any session without
 a display) runs the daemon on a single asyncio loop with no GTK. Mode
 selection is documented in [GUI.md](GUI.md#mode-selection-gtk-vs-headless).
 
-A D-Bus surface (`com.devpane.Daemon`) is planned post-M2 for scripting and
-tray indicators.
+A D-Bus surface (`io.github.nfantunes.DevPane`) is planned post-v0.1 for
+scripting and tray indicators.
 
 ## Single-instance behaviour
 

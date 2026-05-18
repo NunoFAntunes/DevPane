@@ -50,7 +50,7 @@ bindsym F12 exec --no-startup-id devpane-toggle
 
 After binding:
 
-1. Run `devpaned &` (or rely on autostart from `data/com.devpane.Daemon.desktop`).
+1. Run `devpaned &` (or rely on autostart from `data/io.github.nfantunes.DevPane.desktop`).
 2. Press F12 → the pane should drop down within 200 ms.
 3. Press F12 again → the pane hides and the file is saved.
 

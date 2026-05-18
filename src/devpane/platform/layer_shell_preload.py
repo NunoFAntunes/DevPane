@@ -49,6 +49,7 @@ def ensure_preloaded() -> None:
 
 
 _FALLBACK_LIBDIRS = (
+    Path("/app/lib"),  # Flatpak sandbox
     Path("/usr/lib"),
     Path("/usr/lib64"),
     Path("/usr/lib/x86_64-linux-gnu"),

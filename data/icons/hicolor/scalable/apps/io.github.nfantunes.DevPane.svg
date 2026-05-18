@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Placeholder DevPane icon. Concept: a "drawer" sliding down from the top
+  edge with two lines of text inside, suggesting a drop-down notetaking
+  pane. Uses libadwaita-style rounded corners and the GNOME blue accent.
+  Replace with a designed icon before any public release.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="paneFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3584e4"/>
+      <stop offset="1" stop-color="#1a5fb4"/>
+    </linearGradient>
+  </defs>
+  <!-- Background plate (the screen the pane drops onto) -->
+  <rect x="8" y="8" width="112" height="112" rx="16" ry="16"
+        fill="#241f31" opacity="0.92"/>
+  <!-- The pane: flush with the top, rounded only at the bottom corners. -->
+  <path d="M 20 8
+           L 108 8
+           L 108 70
+           Q 108 78 100 78
+           L 28 78
+           Q 20 78 20 70
+           Z"
+        fill="url(#paneFill)"/>
+  <!-- Text lines suggesting markdown content. -->
+  <rect x="32" y="30" width="48" height="6" rx="3" fill="#ffffff" opacity="0.9"/>
+  <rect x="32" y="44" width="64" height="4" rx="2" fill="#ffffff" opacity="0.55"/>
+  <rect x="32" y="54" width="56" height="4" rx="2" fill="#ffffff" opacity="0.55"/>
+  <rect x="32" y="64" width="40" height="4" rx="2" fill="#ffffff" opacity="0.55"/>
+</svg>

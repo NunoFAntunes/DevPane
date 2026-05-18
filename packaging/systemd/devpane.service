@@ -1,0 +1,33 @@
+# DevPane systemd user service. Alternative to the XDG autostart entry.
+#
+# Install:    systemctl --user enable --now devpane.service
+# View logs:  journalctl --user -u devpane.service
+#
+# This unit is also installed by the Arch package to
+# /usr/lib/systemd/user/devpane.service so `systemctl --user enable
+# devpane.service` works out of the box.
+#
+# Note: WantedBy=graphical-session.target requires a display manager
+# that starts that target (GDM, SDDM, lightdm with the right config).
+# If your session doesn't, prefer the XDG autostart entry shipped at
+# /etc/xdg/autostart/io.github.nfantunes.DevPane.desktop, or run:
+#   systemctl --user start devpane.service
+# manually from your session startup script.
+
+[Unit]
+Description=DevPane drop-down notetaking pane
+Documentation=https://github.com/nfantunes/DevPane
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/devpaned --gtk
+Restart=on-failure
+RestartSec=2s
+SyslogIdentifier=devpaned
+# Honor the user's locale and display environment.
+PassEnvironment=DISPLAY WAYLAND_DISPLAY XDG_SESSION_TYPE XDG_CURRENT_DESKTOP XDG_RUNTIME_DIR LANG
+
+[Install]
+WantedBy=graphical-session.target

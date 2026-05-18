@@ -42,6 +42,12 @@ KDE Plasma 6 / Wayland with layer-shell; tested headless on other paths.
   rotating file log at `$XDG_STATE_HOME/devpane/devpane.log` (1 MB ×
   3 rotations), `devpane --check` reports session, compositor,
   layer-shell availability, log path.
+- **Distribution** (M7): app ID set to `io.github.nfantunes.DevPane`;
+  Arch `PKGBUILD`, Flatpak manifest (skeleton), systemd user unit, XDG
+  autostart `.desktop`, AppStream `metainfo.xml`, placeholder app SVG,
+  GSettings schema. None pushed to AUR or Flathub yet; build locally
+  with `makepkg -si` or `flatpak-builder --user --install`. Layer-shell
+  preload now also looks in `/app/lib` for the Flatpak sandbox.
 
 ### Known limitations
 

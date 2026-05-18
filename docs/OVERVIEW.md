@@ -70,7 +70,7 @@ Implementation follows the milestones in [PLAN.md](PLAN.md).
 | M4 — Platform adapters (layer-shell, X11) | ✅ done |
 | M5 — Editor UX | ✅ done |
 | M6 — Polish + animations | ✅ done |
-| M7 — Distribution (Flatpak, AUR) | ⏸ deferred |
+| M7 — Distribution (packaging files) | ✅ done (not yet published to AUR/Flathub) |
 | M8 — Hardening + release | ✅ done |
 
 For the storage layer's on-disk format and inspection commands, see

@@ -1,0 +1,81 @@
+# DevPane Flatpak manifest (skeleton).
+#
+# Status: builds locally with `flatpak-builder --user --install build
+# packaging/flatpak/io.github.nfantunes.DevPane.yml`. Not yet polished
+# for Flathub submission — missing screenshots in the AppStream
+# metainfo and a designed app icon. See docs/LIMITATIONS.md.
+#
+# Note on filesystem permissions: DevPane is files-first. To keep that
+# promise inside the sandbox we grant narrow access to the real XDG
+# paths under $HOME rather than letting Flatpak redirect them into
+# ~/.var/app/<id>/. The user can still grep, git, or sync notes from
+# outside the sandbox.
+
+id: io.github.nfantunes.DevPane
+runtime: org.gnome.Platform
+runtime-version: '47'
+sdk: org.gnome.Sdk
+command: devpaned
+
+finish-args:
+  # Display + input.
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+
+  # Files-first: real paths under $HOME, not the per-app cage.
+  - --filesystem=~/.local/share/devpane:create
+  - --filesystem=~/.local/state/devpane:create
+  - --filesystem=~/.config/devpane:create
+
+  # Allow `flatpak run --command=devpane-toggle ...` from a user hotkey.
+  - --talk-name=org.freedesktop.Flatpak
+
+modules:
+  # gtk4-layer-shell — not in the GNOME runtime, build from source.
+  - name: gtk4-layer-shell
+    buildsystem: meson
+    config-opts:
+      - -Dexamples=false
+      - -Dtests=false
+      - -Ddocs=false
+      - -Dvapi=false
+    sources:
+      - type: archive
+        url: https://github.com/wmww/gtk4-layer-shell/archive/refs/tags/v1.3.0.tar.gz
+        # Replace with real sha256 at release time:
+        #   curl -sL <url> | sha256sum
+        sha256: 0000000000000000000000000000000000000000000000000000000000000000
+
+  # GtkSourceView 5 is in the GNOME 47 runtime — no need to build.
+  # PyGObject is in the GNOME 47 SDK — no need to build.
+
+  # DevPane itself.
+  - name: devpane
+    buildsystem: simple
+    build-commands:
+      # Install the wheel into /app via pip (--no-deps because deps come
+      # from the runtime).
+      - pip3 install --prefix=/app --no-build-isolation --no-deps .
+
+      # Data files.
+      - install -Dm644 data/io.github.nfantunes.DevPane.desktop
+        /app/share/applications/io.github.nfantunes.DevPane.desktop
+      - install -Dm644 data/io.github.nfantunes.DevPane.metainfo.xml
+        /app/share/metainfo/io.github.nfantunes.DevPane.metainfo.xml
+      - install -Dm644 data/icons/hicolor/scalable/apps/io.github.nfantunes.DevPane.svg
+        /app/share/icons/hicolor/scalable/apps/io.github.nfantunes.DevPane.svg
+      - install -Dm644 data/gschemas/io.github.nfantunes.DevPane.gschema.xml
+        /app/share/glib-2.0/schemas/io.github.nfantunes.DevPane.gschema.xml
+      - glib-compile-schemas /app/share/glib-2.0/schemas
+    sources:
+      - type: dir
+        path: ../..
+
+cleanup:
+  - /include
+  - /lib/pkgconfig
+  - /share/man
+  - '*.la'
+  - '*.a'

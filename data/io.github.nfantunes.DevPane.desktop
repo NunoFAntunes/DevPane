@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=DevPane
+GenericName=Drop-down notetaking
+Comment=Linux drop-down notetaking pane for developers
+Icon=io.github.nfantunes.DevPane
+Exec=devpaned --gtk
+Categories=Utility;TextEditor;
+Keywords=note;notes;markdown;dropdown;scratchpad;developer;
+StartupNotify=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+X-KDE-autostart-after=panel

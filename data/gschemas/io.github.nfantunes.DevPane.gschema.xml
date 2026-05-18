@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  GSettings schema for DevPane.
+
+  Status: shipped in v0.1.0 packaging but NOT yet read by the runtime
+  (the daemon still uses $XDG_CONFIG_HOME/devpane/prefs.json — see
+  docs/LIMITATIONS.md). Wired up in a follow-up release once a
+  migration story is in place.
+
+  Compile from source tree (for dev use):
+    glib-compile-schemas data/gschemas/
+
+  The Arch package and Flatpak both install the compiled schema into
+  /usr/share/glib-2.0/schemas/ (or /app/share/glib-2.0/schemas/ in the
+  sandbox).
+-->
+<schemalist gettext-domain="devpane">
+  <schema id="io.github.nfantunes.DevPane" path="/io/github/nfantunes/DevPane/">
+
+    <key name="height-ratio" type="d">
+      <range min="0.20" max="0.95"/>
+      <default>0.6</default>
+      <summary>Pane height as a fraction of monitor height</summary>
+      <description>
+        The drop-down pane occupies this fraction of the monitor's
+        height. Clamped to 0.20–0.95.
+      </description>
+    </key>
+
+    <key name="last-note" type="s">
+      <default>""</default>
+      <summary>Filename of the last open note</summary>
+      <description>
+        When the daemon starts, it opens this note in the editor. Empty
+        string means "open the default scratch note".
+      </description>
+    </key>
+
+    <key name="animate" type="b">
+      <default>true</default>
+      <summary>Whether to animate the pane on show</summary>
+      <description>
+        If true, the pane height animates from 1px to its target over
+        ~180ms when shown. If false, the pane appears at full size
+        immediately.
+      </description>
+    </key>
+
+  </schema>
+</schemalist>

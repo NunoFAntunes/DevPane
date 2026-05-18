@@ -3,8 +3,9 @@
 Linux drop-down notetaking pane for developers. Press a key, type, press the
 key again — your notes are saved as plain markdown.
 
-**Status:** alpha `v0.1.0` — functionally complete. M0–M6 and M8 done;
-M7 (packaging) deferred. See
+**Status:** alpha `v0.1.0` — functionally complete. M0–M8 done.
+Packaging files (Arch PKGBUILD, Flatpak manifest, systemd unit) are in
+[`packaging/`](packaging/) but not yet published to AUR / Flathub. See
 [Overview](docs/OVERVIEW.md#project-status) for the milestone matrix and
 [CHANGELOG](CHANGELOG.md) for release notes.
 
