@@ -59,37 +59,60 @@ Detection probes (in order): `XDG_SESSION_TYPE`, `WAYLAND_DISPLAY`,
 
 ## Storage
 
+See [STORAGE.md](STORAGE.md) for the on-disk layout, name rules, and how to
+inspect / back up DevPane state.
+
 - **Filesystem of record.** Each note is one `.md` file under
-  `$XDG_DATA_HOME/devpane/notes/`. Writes go via `os.replace` for atomicity.
-- **Derived index.** `index.sqlite` holds an FTS5 virtual table plus recency
-  and pinned flags. It is rebuildable from disk at any time — never the only
-  copy of anything.
-- **Autosave.** 2-second debounce on `buffer.changed` plus a forced flush on
-  `hide()`.
+  `$XDG_DATA_HOME/devpane/notes/`. Writes use `tempfile.mkstemp` in the same
+  directory + `fsync` + `os.replace` so a crashed daemon never leaves a
+  half-written file. Implemented in `store/notes.py`.
+- **Name validation.** Stems match `^[A-Za-z0-9_][A-Za-z0-9._-]*$` (no path
+  separators, no leading dots, no whitespace). The `.md` suffix is appended
+  if missing. Canonicalization happens at the storage API boundary so the
+  rest of the code can pass either `"foo"` or `"foo.md"`.
+- **Derived index.** `index.sqlite` (WAL mode) holds a `notes` table
+  (denormalized copy: `name`, `body`, `updated_at`, `pinned`) and a
+  `notes_fts` FTS5 virtual table in *external content* mode
+  (`content='notes'`). Insert/update/delete triggers keep them in sync.
+  Tokenizer is `unicode61 remove_diacritics 2`.
+- **Migrations.** SQL files in `store/migrations/` are applied in lexical
+  order. The runner records each filename in `schema_migrations` and skips
+  applied ones. Rebuildable: the index can be deleted at any time and
+  recovered with `index.reindex_all()` from the filesystem.
+- **Autosave.** 2-second debounce on `buffer.changed` (via
+  `util.debounce.Debouncer`) plus a forced flush on `hide()`.
 - **External edits.** The daemon re-reads the active note's file on `show()`
   so changes made by other tools (editor, `git pull`, Syncthing) are visible.
 
 ## IPC
 
-A Unix domain socket at `$XDG_RUNTIME_DIR/devpane.sock` carries
-line-delimited JSON:
+A Unix domain socket at `$XDG_RUNTIME_DIR/devpane/devpane.sock` (mode
+`0600`) carries one JSON object per connection. Full protocol reference:
+[IPC.md](IPC.md).
 
-```
-{"cmd":"toggle"}
-{"cmd":"show"}
-{"cmd":"hide"}
-{"cmd":"new-note"}
-{"cmd":"status"}
-```
+The server is implemented in `daemon/ipc.py` using `asyncio.start_unix_server`.
+Connections are one-shot (request, response, close). M2 commands: `toggle`,
+`show`, `hide`, `status`, `quit`.
 
-The daemon also exposes an optional D-Bus name `com.devpane.Daemon` with the
-same surface, so scripts and tray indicators can drive it without the socket.
+**Loop integration (M3 plan).** The M2 daemon runs `asyncio` as its only
+loop. When M3 introduces a GTK window, asyncio will move to a dedicated
+worker thread and command handlers that touch the UI will post their work to
+the GLib main thread via `GLib.idle_add`. The wire protocol is unaffected.
+
+A D-Bus surface (`com.devpane.Daemon`) is planned post-M2 for scripting and
+tray indicators.
 
 ## Single-instance behaviour
 
-On startup, `devpaned` checks for an existing socket. If a daemon is already
-running, the second invocation acts as a toggle and exits. This lets users
-bind `devpaned` itself as the hotkey if they prefer not to install the CLI.
+`devpaned` takes an exclusive `fcntl.flock` on
+`$XDG_RUNTIME_DIR/devpane/devpane.pid`. A second invocation:
+
+1. Fails to acquire the lock.
+2. Probes the socket; if a peer answers, forwards a `toggle` and exits 0.
+3. If the lock is held but the socket is non-responsive, exits 1.
+
+This lets users bind either `devpaned` or `devpane-toggle` to a hotkey.
+Implementation: `daemon/single_instance.py`.
 
 ## Failure modes and recovery
 

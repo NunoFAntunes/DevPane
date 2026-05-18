@@ -44,6 +44,9 @@ devpane-toggle = "devpane.cli.toggle:main"
 Homepage = "https://github.com/nfantunes/DevPane"
 Issues = "https://github.com/nfantunes/DevPane/issues"
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/devpane"]
 

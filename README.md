@@ -3,12 +3,15 @@
 Linux drop-down notetaking pane for developers. Press a key, type, press the
 key again — your notes are saved as plain markdown.
 
-**Status:** pre-alpha (M0 skeleton).
+**Status:** pre-alpha. M0–M2 complete (skeleton, storage, IPC daemon); see
+[Overview](docs/OVERVIEW.md#project-status) for the milestone matrix.
 
 ## Docs
 
-- [Overview](docs/OVERVIEW.md) — what DevPane is and why
+- [Overview](docs/OVERVIEW.md) — what DevPane is, why, and current status
 - [Architecture](docs/ARCHITECTURE.md) — runtime design and module layout
+- [Storage](docs/STORAGE.md) — on-disk layout, name rules, inspection commands
+- [IPC](docs/IPC.md) — wire protocol between `devpane-toggle` and `devpaned`
 - [Plan](docs/PLAN.md) — milestones and verification steps
 - [Hotkey setup](docs/HOTKEY-SETUP.md) — per-DE binding instructions
 - [Contributing](docs/CONTRIBUTING.md) — dev setup, tests, conventions

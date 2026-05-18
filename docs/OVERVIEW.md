@@ -54,8 +54,23 @@ For the full architecture, milestones, and verification steps, see
 
 ## Project status
 
-Pre-alpha. Skeleton in place (milestone M0). Implementation proceeds through
-milestones M1–M8 as described in [PLAN.md](PLAN.md).
+Pre-alpha. Implementation follows the milestones in [PLAN.md](PLAN.md).
+
+| Milestone | Status |
+|-----------|--------|
+| M0 — Project skeleton | ✅ done |
+| M1 — Storage layer (notes, index, debounce) | ✅ done |
+| M2 — IPC + single-instance daemon | ✅ done |
+| M3 — Platform detection + minimal window | ⏳ next |
+| M4 — Platform adapters (layer-shell, X11) | ⏳ |
+| M5 — Editor UX | ⏳ |
+| M6 — Polish + animations | ⏳ |
+| M7 — Distribution (Flatpak, AUR) | ⏳ |
+| M8 — Hardening + release | ⏳ |
+
+For the storage layer's on-disk format and inspection commands, see
+[STORAGE.md](STORAGE.md). For the IPC protocol the CLI speaks to the daemon,
+see [IPC.md](IPC.md).
 
 ## Repository map
 
@@ -66,7 +81,7 @@ milestones M1–M8 as described in [PLAN.md](PLAN.md).
 | `packaging/` | Flatpak, Arch PKGBUILD, systemd user unit |
 | `tests/` | Pytest suite (unit + headless GTK smoke) |
 | `scripts/` | `dev-run.sh`, `reset-state.sh` |
-| `docs/` | This file, plan, architecture deep-dive, hotkey setup, contributing |
+| `docs/` | This file, plan, architecture, storage, hotkey setup, contributing |
 
 ## License
 
