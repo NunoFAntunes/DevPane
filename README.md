@@ -3,10 +3,10 @@
 Linux drop-down notetaking pane for developers. Press a key, type, press the
 key again — your notes are saved as plain markdown.
 
-**Status:** pre-alpha. M0–M5 complete (skeleton, storage, IPC daemon,
-GTK window, platform adapters, markdown editor); see
+**Status:** pre-alpha. M0–M6 complete (skeleton, storage, IPC daemon,
+GTK window, platform adapters, markdown editor, polish); see
 [Overview](docs/OVERVIEW.md#project-status) for the milestone matrix.
-**Functionally usable.**
+**Functionally usable.** Distribution (Flatpak, AUR) is next.
 
 ## Docs
 

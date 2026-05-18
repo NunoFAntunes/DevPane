@@ -57,7 +57,7 @@ Defined in [`store/migrations/0001_init.sql`](../src/devpane/store/migrations/00
 
 | Table / virtual table | Purpose |
 |-----------------------|---------|
-| `notes(name, body, updated_at, pinned)` | Denormalized copy of disk; primary key on `name` |
+| `notes(name, body, updated_at, pinned, cursor_offset)` | Denormalized copy of disk; primary key on `name`. `cursor_offset` added by migration 0002 to remember the editor's cursor position per note. |
 | `notes_fts` (FTS5, `content='notes'`) | Full-text search; tokenizer `unicode61 remove_diacritics 2` |
 | `schema_migrations(name, applied_at)` | Tracks applied migrations by filename |
 

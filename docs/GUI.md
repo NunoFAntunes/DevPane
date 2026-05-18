@@ -128,6 +128,33 @@ A SQLite connection (`store.index`) is opened on the main thread during
 `index.touch()` so the FTS5 search index and recency ordering stay in
 sync with the filesystem. The connection is closed in `on_shutdown`.
 
+## Polish (M6)
+
+**Slide-down on show.** When the pane is presented, the window's height
+animates from 1px to its target via `Adw.TimedAnimation` over 180ms with
+an ease-out-cubic curve. With layer-shell anchored to the top edge the
+height growth reads as a drawer sliding down. The animation is disabled
+when `prefs.animate` is false.
+
+**Per-note cursor position.** Each save stamps the buffer's cursor
+offset into the SQLite `notes.cursor_offset` column (migration
+`0002_cursor.sql`). On load, the cursor is restored — clamped to the
+current buffer length in case the file was truncated externally. The
+position survives hide/show *and* daemon restart.
+
+**Last-open note.** `hide_pane()` persists the currently-loaded note name
+into `$XDG_CONFIG_HOME/devpane/prefs.json`. On next startup the daemon
+opens that note if it still exists, falling back to `scratch.md`
+otherwise. Implementation: [`ui/prefs.py`](../src/devpane/ui/prefs.py).
+
+**Height ratio is also persisted** (default 0.6 of monitor height, clamped
+to 0.2–0.95). A future milestone can wire a resize handle to mutate it.
+
+**Multi-monitor.** M6 picks the first reported monitor. Following the
+cursor across monitors is not generally possible on Wayland without
+compositor-specific extensions; users on multi-monitor setups can
+configure their compositor to place DevPane on a specific output.
+
 ### Layer-shell linker requirement
 
 `gtk4-layer-shell` must be **linked before** `libwayland-client`. Python

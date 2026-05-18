@@ -117,3 +117,20 @@ def set_pinned(conn: sqlite3.Connection, name: str, pinned: bool) -> None:
     canon = notes.canonical_name(name)
     with conn:
         conn.execute("UPDATE notes SET pinned = ? WHERE name = ?", (1 if pinned else 0, canon))
+
+
+def save_cursor(conn: sqlite3.Connection, name: str, offset: int) -> None:
+    """Persist the cursor character offset for a note."""
+    canon = notes.canonical_name(name)
+    with conn:
+        conn.execute(
+            "UPDATE notes SET cursor_offset = ? WHERE name = ?",
+            (max(0, int(offset)), canon),
+        )
+
+
+def get_cursor(conn: sqlite3.Connection, name: str) -> int:
+    """Return the saved cursor offset for a note, or 0 if unknown."""
+    canon = notes.canonical_name(name)
+    row = conn.execute("SELECT cursor_offset FROM notes WHERE name = ?", (canon,)).fetchone()
+    return int(row[0]) if row is not None else 0

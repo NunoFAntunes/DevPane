@@ -21,7 +21,7 @@ def conn(xdg_tmp: Path) -> Iterator[object]:
 
 def test_migrations_applied(conn) -> None:  # type: ignore[no-untyped-def]
     rows = list(conn.execute("SELECT name FROM schema_migrations ORDER BY name"))
-    assert [r[0] for r in rows] == ["0001_init.sql"]
+    assert [r[0] for r in rows] == ["0001_init.sql", "0002_cursor.sql"]
 
 
 def test_migrations_idempotent(xdg_tmp: Path) -> None:
@@ -30,7 +30,32 @@ def test_migrations_idempotent(xdg_tmp: Path) -> None:
     c2 = index.connect()
     rows = list(c2.execute("SELECT count(*) FROM schema_migrations"))
     c2.close()
-    assert rows[0][0] == 1
+    assert rows[0][0] == 2
+
+
+def test_save_and_get_cursor(conn) -> None:  # type: ignore[no-untyped-def]
+    notes.write_atomic("c", "hello world")
+    index.touch(conn, "c")
+    index.save_cursor(conn, "c", 7)
+    assert index.get_cursor(conn, "c") == 7
+    assert index.get_cursor(conn, "c.md") == 7  # canonicalization
+
+
+def test_cursor_defaults_to_zero(conn) -> None:  # type: ignore[no-untyped-def]
+    notes.write_atomic("d", "x")
+    index.touch(conn, "d")
+    assert index.get_cursor(conn, "d") == 0
+
+
+def test_get_cursor_missing_returns_zero(conn) -> None:  # type: ignore[no-untyped-def]
+    assert index.get_cursor(conn, "nonexistent") == 0
+
+
+def test_save_cursor_clamps_negative(conn) -> None:  # type: ignore[no-untyped-def]
+    notes.write_atomic("e", "x")
+    index.touch(conn, "e")
+    index.save_cursor(conn, "e", -5)
+    assert index.get_cursor(conn, "e") == 0
 
 
 def test_touch_and_search(conn) -> None:  # type: ignore[no-untyped-def]

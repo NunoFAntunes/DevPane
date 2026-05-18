@@ -64,8 +64,8 @@ Pre-alpha. Implementation follows the milestones in [PLAN.md](PLAN.md).
 | M3 — Platform detection + minimal window | ✅ done |
 | M4 — Platform adapters (layer-shell, X11) | ✅ done |
 | M5 — Editor UX | ✅ done |
-| M6 — Polish + animations | ⏳ next |
-| M7 — Distribution (Flatpak, AUR) | ⏳ |
+| M6 — Polish + animations | ✅ done |
+| M7 — Distribution (Flatpak, AUR) | ⏳ next |
 | M8 — Hardening + release | ⏳ |
 
 For the storage layer's on-disk format and inspection commands, see

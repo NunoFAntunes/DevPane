@@ -31,16 +31,18 @@ gi.require_version("Adw", "1")
 
 from gi.repository import Adw, Gdk, GLib, Gtk  # noqa: E402
 
+_ANIMATION_MS = 180
+
 from devpane.store import notes  # noqa: E402
 from devpane.ui.editor import NoteEditor  # noqa: E402
 from devpane.ui.header import PaneHeader  # noqa: E402
+from devpane.ui.prefs import Prefs  # noqa: E402
 
 if TYPE_CHECKING:
     from devpane.platform.adapter import PlatformAdapter
 
 _log = logging.getLogger(__name__)
 
-_HEIGHT_FRACTION = 0.6
 _CSS_LOADED = False
 
 
@@ -76,6 +78,10 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
 
         self._adapter = adapter
         self._pane_visible = False
+        self._prefs = Prefs.load()
+        self._target_height = 1
+        self._target_width = 1
+        self._slide_anim: Adw.TimedAnimation | None = None
 
         self._editor = NoteEditor(conn)
         self._header = PaneHeader(on_new=self._new_note, on_switch_to=self._switch_to)
@@ -92,7 +98,10 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
 
         # Ensure a default note exists so first show has content to load.
         notes.ensure_default()
-        self._load(notes.DEFAULT_NOTE)
+        startup_note = self._prefs.last_note or notes.DEFAULT_NOTE
+        if not notes.exists(startup_note):
+            startup_note = notes.DEFAULT_NOTE
+        self._load(startup_note)
 
     # ---- visibility ----
 
@@ -100,20 +109,35 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         return self._pane_visible
 
     def show_pane(self) -> None:
-        # Re-read the active note from disk so changes made externally
-        # (editor, `git pull`, Syncthing) are reflected.
+        # Re-read the active note's text + cursor from disk so external
+        # edits and the cursor saved at hide-time both take effect.
+        self._editor.refresh()
         if self._editor.current_note is not None:
-            self._load(self._editor.current_note)
+            self._header.set_current_note(self._editor.current_note)
         self._size_to_monitor()
+        if self._prefs.animate:
+            # Start collapsed; animation expands to the target height. The
+            # window is anchored to the top edge (layer-shell) or simply
+            # decoration-less elsewhere, so growing height reads as a slide.
+            self.set_default_size(self._target_width, 1)
         self.present()
         self._adapter.on_show(self)
         self._editor.focus()
         self._pane_visible = True
+        if self._prefs.animate:
+            self._animate_height(1, self._target_height)
         _log.debug("window: shown")
 
     def hide_pane(self) -> None:
         # Always flush before hiding so nothing is in flight when we sleep.
         self._editor.flush()
+        # Persist the last-open note for the next daemon start.
+        if self._editor.current_note is not None:
+            self._prefs.last_note = self._editor.current_note
+            try:
+                self._prefs.save()
+            except OSError as e:
+                _log.warning("prefs: save failed (%s)", e)
         self._adapter.on_hide(self)
         self.set_visible(False)
         self._pane_visible = False
@@ -174,6 +198,11 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         self._header.set_current_note(canon)
 
     def _size_to_monitor(self) -> None:
+        # M6 picks the first reported monitor. Following the cursor across
+        # monitors is not generally possible on Wayland without compositor
+        # extensions; users on multi-monitor setups can configure their
+        # compositor to place DevPane on a specific output. We may revisit
+        # this with the GlobalShortcuts portal in a later milestone.
         display = self.get_display()
         if display is None:
             return
@@ -184,9 +213,27 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         if monitor is None:
             return
         geom = monitor.get_geometry()
-        width = geom.width
-        height = int(geom.height * _HEIGHT_FRACTION)
-        self.set_default_size(width, height)
+        self._target_width = geom.width
+        self._target_height = max(1, int(geom.height * self._prefs.height_ratio))
+        if not self._prefs.animate:
+            self.set_default_size(self._target_width, self._target_height)
+
+    def _animate_height(self, from_h: int, to_h: int) -> None:
+        # Cancel any in-flight animation so a rapid toggle doesn't stack.
+        if self._slide_anim is not None:
+            self._slide_anim.pause()
+            self._slide_anim = None
+
+        target_width = self._target_width
+
+        def _apply(v: float) -> None:
+            self.set_default_size(target_width, max(1, int(v)))
+
+        target = Adw.CallbackAnimationTarget.new(_apply)
+        anim = Adw.TimedAnimation.new(self, from_h, to_h, _ANIMATION_MS, target)
+        anim.set_easing(Adw.Easing.EASE_OUT_CUBIC)
+        self._slide_anim = anim
+        anim.play()
 
 
 class GtkController:

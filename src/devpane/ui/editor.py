@@ -79,25 +79,48 @@ class NoteEditor(Gtk.Box):  # type: ignore[misc]
         return self._view
 
     def load_note(self, name: str) -> None:
-        """Flush any pending save on the previous note, then load `name`."""
-        self.flush()
+        """Switch to `name`, flushing the previous note's state first."""
         canon = notes.canonical_name(name)
-        body = notes.read(canon) if notes.exists(canon) else ""
+        # If we're truly switching, save the outgoing note. If we're
+        # "switching" to the same note we're already on, do not flush —
+        # that would clobber a cursor position written externally
+        # (e.g. by a sibling process or the prior daemon run) with the
+        # current in-buffer position.
+        if self._current_note is not None and self._current_note != canon:
+            self.flush()
+        self._load_into_buffer(canon)
+
+    def refresh(self) -> None:
+        """Reload the current note's text + cursor from disk. No-op if none."""
+        if self._current_note is None:
+            return
+        self._load_into_buffer(self._current_note)
+
+    def _load_into_buffer(self, canon: str) -> None:
+        existed = notes.exists(canon)
+        body = notes.read(canon) if existed else ""
+        # Touch first so the row exists; then read the cursor.
+        index.touch(self._conn, canon, body)
+        saved_offset = index.get_cursor(self._conn, canon) if existed else 0
         self._loading = True
         try:
             self._buffer.set_text(body)
-            # Cursor at end is more useful than start for an active scratch.
-            self._buffer.place_cursor(self._buffer.get_end_iter())
+            # Clamp to the current buffer length — body length may have
+            # shrunk since the cursor was saved (e.g. external truncation).
+            offset = max(0, min(saved_offset, self._buffer.get_char_count()))
+            self._buffer.place_cursor(self._buffer.get_iter_at_offset(offset))
         finally:
             self._loading = False
         self._current_note = canon
-        # Touch the index so the new note shows up immediately in the switcher.
-        index.touch(self._conn, canon, body)
-        _log.info("editor: loaded %s (%d bytes)", canon, len(body))
+        _log.info("editor: loaded %s (%d bytes, cursor=%d)", canon, len(body), offset)
 
     def flush(self) -> None:
-        """Force any pending autosave to run synchronously."""
-        self._autosaver.flush()
+        """Force any pending autosave to run synchronously, and snapshot the cursor."""
+        had_pending = self._autosaver.flush()
+        # The cursor moves without dirtying the buffer (e.g. arrow keys), so
+        # save it explicitly even when no autosave was pending.
+        if not had_pending and self._current_note is not None:
+            self._save_cursor_only()
 
     def focus(self) -> None:
         self._view.grab_focus()
@@ -116,7 +139,14 @@ class NoteEditor(Gtk.Box):  # type: ignore[misc]
         text = self._buffer.get_text(start, end, False)
         notes.write_atomic(self._current_note, text)
         index.touch(self._conn, self._current_note, text)
+        self._save_cursor_only()
         _log.debug("editor: saved %s (%d bytes)", self._current_note, len(text))
+
+    def _save_cursor_only(self) -> None:
+        if self._current_note is None:
+            return
+        offset = int(self._buffer.get_property("cursor-position"))
+        index.save_cursor(self._conn, self._current_note, offset)
 
     def _apply_language(self) -> None:
         lang = GtkSource.LanguageManager.get_default().get_language("markdown")
