@@ -1,1 +1,14 @@
-/* libadwaita theming overrides. Populated in M5/M6. */
+/* DevPane look. Loaded by ui.window from the package resource. */
+
+window.devpane-window {
+    /* The pane drops from the top edge; rounding the bottom corners makes
+       it read as a drawer rather than a regular window. */
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+}
+
+.devpane-editor text {
+    font-family: monospace;
+    font-size: 11pt;
+    line-height: 1.4;
+}

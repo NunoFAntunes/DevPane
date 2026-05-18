@@ -63,8 +63,8 @@ Pre-alpha. Implementation follows the milestones in [PLAN.md](PLAN.md).
 | M2 — IPC + single-instance daemon | ✅ done |
 | M3 — Platform detection + minimal window | ✅ done |
 | M4 — Platform adapters (layer-shell, X11) | ✅ done |
-| M5 — Editor UX | ⏳ next |
-| M6 — Polish + animations | ⏳ |
+| M5 — Editor UX | ✅ done |
+| M6 — Polish + animations | ⏳ next |
 | M7 — Distribution (Flatpak, AUR) | ⏳ |
 | M8 — Hardening + release | ⏳ |
 

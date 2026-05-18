@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import sqlite3
 import threading
 from collections.abc import Awaitable, Callable
 
@@ -41,6 +42,7 @@ from gi.repository import Adw, Gio, GLib  # noqa: E402
 
 from devpane.platform.adapter import pick_adapter  # noqa: E402
 from devpane.platform.detect import detect  # noqa: E402
+from devpane.store import index as store_index  # noqa: E402
 from devpane.ui.window import DropDownWindow, GtkController  # noqa: E402
 
 _log = logging.getLogger(__name__)
@@ -69,8 +71,11 @@ def run_gtk(serve: ServeFn) -> int:
 
     def on_activate(app: Adw.Application) -> None:
         adapter = pick_adapter(detect())
-        window = DropDownWindow(app, adapter)
-        # M3: the window is created hidden. Toggle commands present/hide it.
+        # SQLite connection lives on the GTK main thread alongside the editor.
+        conn = store_index.connect()
+        state["index_conn"] = conn
+        window = DropDownWindow(app, adapter, conn)
+        # The window is created hidden. Toggle commands present/hide it.
         # Without explicit hold(), the app would quit as soon as it has no
         # visible windows. The hold keeps it alive in the background.
         app.hold()
@@ -119,6 +124,10 @@ def run_gtk(serve: ServeFn) -> int:
             thread.join(timeout=5.0)
             if thread.is_alive():
                 _log.warning("asyncio worker did not exit within 5s")
+        conn = state.get("index_conn")
+        if isinstance(conn, sqlite3.Connection):
+            with contextlib.suppress(Exception):
+                conn.close()
 
     app.connect("activate", on_activate)
     app.connect("shutdown", on_shutdown)

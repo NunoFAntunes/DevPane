@@ -84,6 +84,50 @@ session type:
 The window is always decoration-less (`set_decorated(False)`), full screen
 width, 60% of monitor height.
 
+## Editor (M5)
+
+The pane body is a `GtkSourceView` with markdown highlighting, monospace
+font, word wrap, no line numbers. Implemented in
+[`ui/editor.py`](../src/devpane/ui/editor.py).
+
+**Autosave.** Every change to the buffer schedules a save 2 seconds later
+via [`ui/autosave.py`](../src/devpane/ui/autosave.py) (a GLib-main-thread
+debouncer — distinct from the threading-based one in `util/debounce.py`
+because the save touches the buffer and the SQLite connection, both
+main-thread-only). `hide_pane()` always flushes the pending save, so no
+keystroke is ever lost when the pane disappears.
+
+**Source of truth on show.** Every `show_pane()` re-reads the current
+note from disk before presenting. This means external edits (your editor,
+`git pull`, Syncthing) are picked up the next time the pane opens.
+Last-writer-wins if you edit in two places at the same time; collision
+detection is out of scope for v1.
+
+**Style scheme.** Tracks `Adw.StyleManager`'s `notify::dark` so the editor
+follows the system light/dark setting automatically.
+
+## Header + note switching
+
+The pane's header bar (composition-wraps `Adw.HeaderBar` because that
+class is `final` in libadwaita) shows the current note name as a subtitle
+under "DevPane". Two controls:
+
+| Control | Shortcut | Action |
+|---------|----------|--------|
+| 📄 new-note button | `Ctrl+N` | Create `note-YYYYMMDD-HHMM.md` (auto-suffixed on collisions) and switch to it. |
+| ☰ switcher button | `Ctrl+K` | Popover lists every `.md` in the notes dir, ordered by filename. Click to switch. |
+| (Escape key) | `Escape` | Hide the pane (flushing autosave first). |
+
+Switching notes always flushes the previous note's autosave before
+loading the new one.
+
+## Index integration
+
+A SQLite connection (`store.index`) is opened on the main thread during
+`Adw.Application.activate` and handed to the editor. Every save calls
+`index.touch()` so the FTS5 search index and recency ordering stay in
+sync with the filesystem. The connection is closed in `on_shutdown`.
+
 ### Layer-shell linker requirement
 
 `gtk4-layer-shell` must be **linked before** `libwayland-client`. Python
