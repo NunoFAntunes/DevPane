@@ -23,11 +23,24 @@ from collections.abc import Awaitable, Callable
 
 import gi
 
+# gtk4-layer-shell MUST be loaded before GTK initializes libwayland or it
+# silently no-ops. We eagerly import it here, before any Adw/Gtk symbol is
+# touched, so the layer-shell adapter (chosen later in `on_activate`) is
+# guaranteed to work. If the typelib is absent, swallow the error — the
+# factory will pick a non-layer-shell adapter.
+try:
+    gi.require_version("Gtk4LayerShell", "1.0")
+    from gi.repository import Gtk4LayerShell as _LayerShell  # noqa: F401
+except (ImportError, ValueError):
+    pass
+
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 
 from gi.repository import Adw, Gio, GLib  # noqa: E402
 
+from devpane.platform.adapter import pick_adapter  # noqa: E402
+from devpane.platform.detect import detect  # noqa: E402
 from devpane.ui.window import DropDownWindow, GtkController  # noqa: E402
 
 _log = logging.getLogger(__name__)
@@ -55,7 +68,8 @@ def run_gtk(serve: ServeFn) -> int:
     ready = threading.Event()
 
     def on_activate(app: Adw.Application) -> None:
-        window = DropDownWindow(app)
+        adapter = pick_adapter(detect())
+        window = DropDownWindow(app, adapter)
         # M3: the window is created hidden. Toggle commands present/hide it.
         # Without explicit hold(), the app would quit as soon as it has no
         # visible windows. The hold keeps it alive in the background.

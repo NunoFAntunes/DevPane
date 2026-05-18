@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import gi
 
@@ -21,6 +22,9 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
+
+if TYPE_CHECKING:
+    from devpane.platform.adapter import PlatformAdapter
 
 _log = logging.getLogger(__name__)
 
@@ -30,12 +34,15 @@ _HEIGHT_FRACTION = 0.6
 class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
     """The drop-down pane window. Visibility is owned by callers."""
 
-    def __init__(self, app: Adw.Application) -> None:
+    def __init__(self, app: Adw.Application, adapter: PlatformAdapter) -> None:
         super().__init__(application=app)
         self.set_title("DevPane")
         self.set_decorated(False)
         self._build_body()
         self._pane_visible = False
+        self._adapter = adapter
+        adapter.configure(self)
+        _log.info("window: configured for adapter %s", adapter.name)
 
     def _build_body(self) -> None:
         # M3 placeholder content; replaced by the markdown editor in M5.
@@ -63,10 +70,12 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
     def show_pane(self) -> None:
         self._size_to_monitor()
         self.present()
+        self._adapter.on_show(self)
         self._pane_visible = True
         _log.debug("window: shown")
 
     def hide_pane(self) -> None:
+        self._adapter.on_hide(self)
         self.set_visible(False)
         self._pane_visible = False
         _log.debug("window: hidden")

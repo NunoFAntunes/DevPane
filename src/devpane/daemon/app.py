@@ -155,6 +155,13 @@ def _run_headless(daemon: Daemon) -> int:
 
 
 def _run_gtk(daemon: Daemon) -> int:
+    # Layer-shell requires LD_PRELOAD-ing libgtk4-layer-shell.so before any
+    # GTK or Wayland code is touched. If we're not already preloaded, this
+    # re-execs the process and never returns.
+    from devpane.platform.layer_shell_preload import ensure_preloaded
+
+    ensure_preloaded()
+
     try:
         from devpane.ui.gtk_app import run_gtk
     except (ImportError, ValueError) as e:

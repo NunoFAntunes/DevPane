@@ -48,9 +48,20 @@ Detected at startup:
 
 | Session | Strategy | Module |
 |---------|----------|--------|
-| Wayland + layer-shell (Sway, Hyprland, KDE Plasma 6) | `gtk4-layer-shell`, `LAYER_TOP`, anchor top/left/right | `platform/wayland_layer.py` |
-| Wayland without layer-shell (GNOME) | Top-anchored regular `Adw.Window` | `platform/wayland_plain.py` |
-| X11 | Override-redirect + `_NET_WM_WINDOW_TYPE_DOCK` + keyboard grab | `platform/x11.py` |
+| Wayland + layer-shell (Sway, Hyprland, KDE Plasma 6) | `gtk4-layer-shell`, `LAYER_TOP`, anchor top/left/right, on-demand keyboard | `platform/wayland_layer.py` |
+| Wayland without layer-shell (GNOME) | Borderless toplevel; compositor decides placement | `platform/wayland_plain.py` |
+| X11 | `_NET_WM_WINDOW_TYPE_DOCK` + `ABOVE` / `SKIP_TASKBAR` / `SKIP_PAGER` via python-xlib | `platform/x11.py` |
+
+Selection happens via the `pick_adapter()` factory in
+`platform/adapter.py`. The factory takes a `PlatformInfo` (from
+`platform/detect.py`) and returns a `PlatformAdapter` Protocol instance.
+The window calls the adapter at three lifecycle points: `configure()` once
+at construction, `on_show()` whenever the pane is presented, `on_hide()`
+whenever it disappears.
+
+Layer-shell requires `LD_PRELOAD`-ing `libgtk4-layer-shell.so` before any
+GTK code runs; the daemon's GTK mode auto-re-execs itself with that env
+var set when needed. See [GUI.md](GUI.md#layer-shell-linker-requirement).
 
 Detection probes (in order): `XDG_SESSION_TYPE`, `WAYLAND_DISPLAY`,
 `HYPRLAND_INSTANCE_SIGNATURE`, `SWAYSOCK`, `KDE_FULL_SESSION`,

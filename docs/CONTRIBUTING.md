@@ -8,8 +8,12 @@ On Arch:
 
 ```
 sudo pacman -S python python-gobject gtk4 libadwaita gtksourceview5 \
-    gtk4-layer-shell
+    gtk4-layer-shell python-xlib
 ```
+
+`gtk4-layer-shell` enables the true top-anchored drop-down on KDE / Sway /
+Hyprland; the daemon falls back to a plain borderless window without it.
+`python-xlib` is only needed for X11 sessions.
 
 On Debian/Ubuntu:
 

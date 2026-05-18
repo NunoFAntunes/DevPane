@@ -69,17 +69,33 @@ Resolution lives in `daemon.app._resolve_mode`.
 `devpaned --check` prints all three. M4 uses these to pick the right window
 adapter.
 
-## Window strategy (current vs planned)
+## Window strategy
 
-| | M3 (now) | M4 (next) |
-|---|---|---|
-| Sway / Hyprland / KDE Plasma 6 | Plain Adw.Window, compositor decides position | gtk4-layer-shell, anchored TOP |
-| GNOME (Wayland) | Plain Adw.Window | Top-anchored toplevel |
-| X11 (any WM) | Plain Adw.Window | Override-redirect + `_NET_WM_WINDOW_TYPE_DOCK` + keyboard grab |
+Implemented via `PlatformAdapter` (`platform/adapter.py`). One adapter per
+session type:
 
-The current M3 window is decoration-less (`set_decorated(False)`), full
-screen width, 60% of monitor height, with a minimal placeholder body and a
-header bar.
+| Session | Adapter | Behavior |
+|---------|---------|----------|
+| Wayland + `gtk4-layer-shell` available (Sway, Hyprland, KDE Plasma 6) | `wayland-layer-shell` | True top-anchored layer surface. `LAYER_TOP`, anchored to top/left/right edges, `exclusive_zone=0` (overlay, no reserved space), `ON_DEMAND` keyboard mode. |
+| Wayland without `gtk4-layer-shell` (typically GNOME/Mutter) | `wayland-plain` | Plain borderless toplevel. The compositor decides placement. |
+| X11 | `x11` | Plain toplevel with `_NET_WM_WINDOW_TYPE_DOCK`, `_NET_WM_STATE_ABOVE`, `SKIP_TASKBAR`, `SKIP_PAGER` hints set via `python-xlib`. |
+| No display | `noop` | No-op. |
+
+The window is always decoration-less (`set_decorated(False)`), full screen
+width, 60% of monitor height.
+
+### Layer-shell linker requirement
+
+`gtk4-layer-shell` must be **linked before** `libwayland-client`. Python
+imports alone cannot guarantee this, so the daemon's `_run_gtk` path
+calls `platform.layer_shell_preload.ensure_preloaded()` before any GTK
+import. If the library is present and `LD_PRELOAD` doesn't already cover
+it, the daemon **re-execs itself** with the right environment.
+
+Opt out (e.g. to debug the plain-Wayland adapter on a layer-shell
+system): set `DEVPANE_SKIP_LAYER_SHELL_PRELOAD=1`.
+
+Reference: <https://github.com/wmww/gtk4-layer-shell/blob/main/linking.md>.
 
 ## Trying it locally
 

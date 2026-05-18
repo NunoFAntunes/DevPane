@@ -64,9 +64,9 @@ Filled in during M4 / M7 validation.
 
 | Session | Drop-down style | Status |
 |---------|-----------------|--------|
-| Sway | layer-shell | M4 |
-| Hyprland | layer-shell | M4 |
-| KDE Plasma 6 (Wayland) | plain Adw.Window (M3) → layer-shell (M4) | ✅ M3 verified manually |
-| GNOME 46+ (Wayland) | top-anchored toplevel | M4 |
-| GNOME (X11) | dock + override-redirect | M4 |
-| i3 (X11) | dock + override-redirect | M4 |
+| Sway | layer-shell | needs install + verify |
+| Hyprland | layer-shell | needs install + verify |
+| KDE Plasma 6 (Wayland) | layer-shell | ✅ M4 verified |
+| GNOME 46+ (Wayland) | plain top-anchored toplevel (no layer-shell on Mutter) | needs verify |
+| GNOME (X11) | `_NET_WM_WINDOW_TYPE_DOCK` | needs verify |
+| i3 (X11) | `_NET_WM_WINDOW_TYPE_DOCK` | needs verify |
