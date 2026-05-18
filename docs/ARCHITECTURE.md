@@ -94,10 +94,12 @@ The server is implemented in `daemon/ipc.py` using `asyncio.start_unix_server`.
 Connections are one-shot (request, response, close). M2 commands: `toggle`,
 `show`, `hide`, `status`, `quit`.
 
-**Loop integration (M3 plan).** The M2 daemon runs `asyncio` as its only
-loop. When M3 introduces a GTK window, asyncio will move to a dedicated
-worker thread and command handlers that touch the UI will post their work to
-the GLib main thread via `GLib.idle_add`. The wire protocol is unaffected.
+**Loop integration (M3 — done).** GTK mode runs `asyncio` on a worker
+thread named `devpane-asyncio`. The IPC server lives there; command
+handlers post window work to the GLib main thread via `GLib.idle_add` and
+await a future. Headless mode (used by tests, CI, and any session without
+a display) runs the daemon on a single asyncio loop with no GTK. Mode
+selection is documented in [GUI.md](GUI.md#mode-selection-gtk-vs-headless).
 
 A D-Bus surface (`com.devpane.Daemon`) is planned post-M2 for scripting and
 tray indicators.

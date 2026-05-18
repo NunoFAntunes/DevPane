@@ -61,8 +61,8 @@ Pre-alpha. Implementation follows the milestones in [PLAN.md](PLAN.md).
 | M0 — Project skeleton | ✅ done |
 | M1 — Storage layer (notes, index, debounce) | ✅ done |
 | M2 — IPC + single-instance daemon | ✅ done |
-| M3 — Platform detection + minimal window | ⏳ next |
-| M4 — Platform adapters (layer-shell, X11) | ⏳ |
+| M3 — Platform detection + minimal window | ✅ done |
+| M4 — Platform adapters (layer-shell, X11) | ⏳ next |
 | M5 — Editor UX | ⏳ |
 | M6 — Polish + animations | ⏳ |
 | M7 — Distribution (Flatpak, AUR) | ⏳ |
@@ -70,7 +70,8 @@ Pre-alpha. Implementation follows the milestones in [PLAN.md](PLAN.md).
 
 For the storage layer's on-disk format and inspection commands, see
 [STORAGE.md](STORAGE.md). For the IPC protocol the CLI speaks to the daemon,
-see [IPC.md](IPC.md).
+see [IPC.md](IPC.md). For the GTK window and asyncio↔GLib bridge, see
+[GUI.md](GUI.md).
 
 ## Repository map
 

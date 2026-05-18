@@ -16,7 +16,7 @@ from devpane.daemon.single_instance import send_sync
 
 def _spawn_daemon(env: dict[str, str]) -> subprocess.Popen[bytes]:
     return subprocess.Popen(
-        [sys.executable, "-m", "devpane", "--log-level", "DEBUG"],
+        [sys.executable, "-m", "devpane", "--headless", "--log-level", "DEBUG"],
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -108,7 +108,7 @@ def test_second_daemon_forwards_toggle(xdg_tmp: Path) -> None:
         assert send_sync(sock, "status")["data"]["visible"] is False
         # second invocation should forward a toggle and exit
         second = subprocess.run(
-            [sys.executable, "-m", "devpane"],
+            [sys.executable, "-m", "devpane", "--headless"],
             env=env,
             capture_output=True,
             timeout=5,

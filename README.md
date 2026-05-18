@@ -3,8 +3,9 @@
 Linux drop-down notetaking pane for developers. Press a key, type, press the
 key again — your notes are saved as plain markdown.
 
-**Status:** pre-alpha. M0–M2 complete (skeleton, storage, IPC daemon); see
-[Overview](docs/OVERVIEW.md#project-status) for the milestone matrix.
+**Status:** pre-alpha. M0–M3 complete (skeleton, storage, IPC daemon,
+GTK window); see [Overview](docs/OVERVIEW.md#project-status) for the
+milestone matrix.
 
 ## Docs
 
@@ -12,6 +13,7 @@ key again — your notes are saved as plain markdown.
 - [Architecture](docs/ARCHITECTURE.md) — runtime design and module layout
 - [Storage](docs/STORAGE.md) — on-disk layout, name rules, inspection commands
 - [IPC](docs/IPC.md) — wire protocol between `devpane-toggle` and `devpaned`
+- [GUI](docs/GUI.md) — GTK window, threading model, mode selection
 - [Plan](docs/PLAN.md) — milestones and verification steps
 - [Hotkey setup](docs/HOTKEY-SETUP.md) — per-DE binding instructions
 - [Contributing](docs/CONTRIBUTING.md) — dev setup, tests, conventions

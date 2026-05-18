@@ -25,6 +25,7 @@ def _run_toggle(
 def test_toggle_spawns_daemon_when_missing(xdg_tmp: Path) -> None:
     env = os.environ.copy()
     env["PYTHONPATH"] = str(Path(__file__).resolve().parent.parent / "src")
+    env["DEVPANE_HEADLESS"] = "1"
 
     from devpane.daemon.single_instance import send_sync
     from devpane.store import paths
