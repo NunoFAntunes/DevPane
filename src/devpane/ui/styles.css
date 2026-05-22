@@ -56,3 +56,60 @@ window.devpane-window {
     opacity: 0.5;
     text-decoration: line-through;
 }
+
+.task-progress {
+    font-size: 0.85em;
+    opacity: 0.7;
+}
+
+/* Subtask panel (middle column) */
+
+.subtask-panel {
+    border-right: 1px solid alpha(currentColor, 0.08);
+}
+
+.subtask-header {
+    padding: 8px 12px;
+    border-bottom: 1px solid alpha(currentColor, 0.08);
+}
+
+.subtask-row {
+    border-radius: 6px;
+    margin: 1px 4px;
+    padding: 2px 4px;
+    border-top: 2px solid transparent;
+    border-bottom: 2px solid transparent;
+}
+
+.subtask-row.subtask-done editablelabel {
+    opacity: 0.5;
+    text-decoration: line-through;
+}
+
+.subtask-row .delete-btn {
+    opacity: 0;
+    transition: opacity 100ms ease-out;
+    min-width: 24px;
+    min-height: 24px;
+}
+
+.subtask-row:hover .delete-btn,
+.subtask-row:focus-within .delete-btn {
+    opacity: 0.7;
+}
+
+.subtask-row .delete-btn:hover {
+    opacity: 1;
+}
+
+.subtask-row.dragging {
+    opacity: 0.4;
+}
+
+.subtask-row.drop-above {
+    border-top-color: @accent_color;
+}
+
+.subtask-row.drop-below {
+    border-bottom-color: @accent_color;
+}

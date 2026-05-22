@@ -33,10 +33,11 @@ from gi.repository import Adw, Gdk, GLib, Gtk  # noqa: E402
 
 _ANIMATION_MS = 180
 
-from devpane.store import notes, sprints  # noqa: E402
+from devpane.store import notes, sprints, subtasks  # noqa: E402
 from devpane.ui.editor import NoteEditor  # noqa: E402
 from devpane.ui.prefs import Prefs  # noqa: E402
 from devpane.ui.sprint_bar import SprintBar  # noqa: E402
+from devpane.ui.subtask_panel import SubtaskPanel  # noqa: E402
 from devpane.ui.task_list import TaskList  # noqa: E402
 
 if TYPE_CHECKING:
@@ -99,6 +100,7 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
             on_next=self._sprint_next,
             on_rename=self._sprint_rename,
         )
+        self._subtask_panel = SubtaskPanel(on_changed=self._on_subtasks_changed)
 
         # --- right pane: slim header + editor -----------------------------
         self._title_widget = Adw.WindowTitle.new("DevPane", "")
@@ -114,9 +116,21 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         self._sidebar_btn.connect("toggled", self._on_sidebar_toggled)
         right_header.pack_start(self._sidebar_btn)
 
+        # Inner split: subtasks on the left of the right pane, editor on the
+        # right. ``Gtk.Paned`` gives a draggable separator natively; the
+        # last-known position is persisted in prefs.
+        self._inner_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
+        self._inner_paned.set_start_child(self._subtask_panel.widget)
+        self._inner_paned.set_end_child(self._editor)
+        self._inner_paned.set_resize_start_child(False)
+        self._inner_paned.set_resize_end_child(True)
+        self._inner_paned.set_shrink_start_child(False)
+        self._inner_paned.set_shrink_end_child(False)
+        self._inner_paned.set_position(self._prefs.subtask_panel_width)
+
         right_view = Adw.ToolbarView()
         right_view.add_top_bar(right_header)
-        right_view.set_content(self._editor)
+        right_view.set_content(self._inner_paned)
 
         # --- sidebar: sprint bar above task list --------------------------
         sidebar_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -185,6 +199,7 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         self._prefs.show_sidebar = self._split.get_show_sidebar()
         self._prefs.show_completed = self._task_list.show_completed
         self._prefs.current_sprint = self._current_sprint
+        self._prefs.subtask_panel_width = self._inner_paned.get_position()
         try:
             self._prefs.save()
         except OSError as e:
@@ -266,6 +281,7 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         canon = notes.canonical_name(name)
         was_current = self._editor.current_note == canon
         notes.delete(canon)
+        subtasks.delete_for(canon)
         _log.info("window: deleted task %s", canon)
         self._refresh_sidebar()
         if was_current:
@@ -285,6 +301,13 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
                     self._refresh_sidebar()
                     fallback = notes.DEFAULT_NOTE
             self._load(fallback)
+
+    # ---- subtasks --------------------------------------------------------
+
+    def _on_subtasks_changed(self) -> None:
+        # Subtask mutation may change the parent task's progress display
+        # in the sidebar — refresh while preserving selection and filters.
+        self._task_list.refresh()
 
     # ---- sprint navigation -----------------------------------------------
 
@@ -376,6 +399,7 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         canon = notes.canonical_name(name)
         self._title_widget.set_subtitle(notes.get_title(canon))
         self._task_list.select(canon)
+        self._subtask_panel.load_for(canon)
 
     def _size_to_monitor(self) -> None:
         # M6 picks the first reported monitor. Following the cursor across

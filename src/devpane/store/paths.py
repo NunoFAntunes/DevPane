@@ -38,6 +38,10 @@ def notes_dir() -> Path:
     return data_dir() / "notes"
 
 
+def subtasks_dir() -> Path:
+    return data_dir() / "subtasks"
+
+
 def index_path() -> Path:
     return data_dir() / "index.sqlite"
 

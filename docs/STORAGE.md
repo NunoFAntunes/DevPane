@@ -12,6 +12,10 @@ $XDG_DATA_HOME/devpane/                  # default: ~/.local/share/devpane/
 │   ├── scratch.md                       # default note, auto-created on first use
 │   ├── meeting-2026-05-18.md
 │   └── ...
+├── subtasks/
+│   ├── scratch.json                     # sidecar: [{text, done}, ...] (optional, per task)
+│   └── ...
+├── sprints.json                         # sprint rename registry (optional)
 └── index.sqlite                         # derived; rebuildable
 
 $XDG_STATE_HOME/devpane/                 # default: ~/.local/state/devpane/
@@ -121,6 +125,44 @@ On `store.notes`:
 
 - `get_sprint(name) -> str | None`
 - `set_sprint(name, id)` — atomic write, preserves body and other meta.
+
+## Subtasks
+
+Subtasks are structured (text + done), ordered, and don't carry their
+own notes — so they live in a JSON sidecar per task, not in the
+markdown body:
+
+```
+$XDG_DATA_HOME/devpane/subtasks/<task-stem>.json
+```
+
+Format is a flat array of `{text, done}` objects in display order:
+
+```json
+[
+  {"text": "Wire endpoint", "done": false},
+  {"text": "Add tests", "done": true}
+]
+```
+
+A missing or malformed file means "no subtasks". Saving an empty list
+deletes the sidecar — the absence of a file is the canonical zero
+state, so empty `[]` files never accumulate.
+
+API in [`store/subtasks.py`](../src/devpane/store/subtasks.py):
+
+- `Subtask(text, done)` — dataclass.
+- `load(task_name) -> list[Subtask]`
+- `save(task_name, items)` — atomic write (tempfile + `os.replace` +
+  `fsync`, same pattern as `notes.write_atomic`).
+- `delete_for(task_name)` — idempotent. Called by the task delete
+  path so sidecars don't outlive their parent.
+- `progress(task_name) -> (done, total)` — used by the task-list
+  sidebar to render the `n/m` progress suffix.
+
+The whole list is rewritten on every mutation. Subtask data is tiny
+(usually fewer than a few dozen items per task), so atomic full-file
+writes are simpler than tracking diffs.
 
 ## Atomic writes
 

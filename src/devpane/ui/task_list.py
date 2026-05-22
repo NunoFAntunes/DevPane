@@ -21,7 +21,7 @@ gi.require_version("Adw", "1")
 
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
-from devpane.store import notes  # noqa: E402
+from devpane.store import notes, subtasks  # noqa: E402
 
 _log = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ class TaskRow(Gtk.ListBoxRow):  # type: ignore[misc]
         name: str,
         title: str,
         done: bool,
+        progress: tuple[int, int],
         on_toggle: Callable[[str, bool], None],
         on_context: Callable[[str, TaskRow, float, float], None],
     ) -> None:
@@ -57,6 +58,13 @@ class TaskRow(Gtk.ListBoxRow):  # type: ignore[misc]
         self._label.set_hexpand(True)
         self._label.set_ellipsize(3)  # PANGO_ELLIPSIZE_END
         box.append(self._label)
+
+        done_count, total = progress
+        if total > 0:
+            progress_label = Gtk.Label(label=f"{done_count}/{total}")
+            progress_label.add_css_class("dim-label")
+            progress_label.add_css_class("task-progress")
+            box.append(progress_label)
 
         self.set_child(box)
         if done:
@@ -175,10 +183,15 @@ class TaskList:
         rows.sort(key=lambda r: (r[0], -r[1]))
 
         for done, _mt, title, name in rows:
+            try:
+                prog = subtasks.progress(name)
+            except OSError:
+                prog = (0, 0)
             row = TaskRow(
                 name=name,
                 title=title,
                 done=done,
+                progress=prog,
                 on_toggle=self._on_check_toggle,
                 on_context=self._open_context_menu,
             )

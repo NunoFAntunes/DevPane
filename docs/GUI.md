@@ -108,7 +108,9 @@ follows the system light/dark setting automatically.
 
 ## Task list + layout
 
-The pane uses an `Adw.OverlaySplitView`:
+The pane uses an `Adw.OverlaySplitView` for the sidebar, and a
+`Gtk.Paned` (`HORIZONTAL`) inside the content area to split the
+**subtask panel** from the markdown editor:
 
 - **Left sidebar** — a sprint bar above a task list:
   - [`ui/sprint_bar.py`](../src/devpane/ui/sprint_bar.py) — previous /
@@ -121,7 +123,21 @@ The pane uses an `Adw.OverlaySplitView`:
     stem). Selecting a row opens that file in the editor. A footer
     switch toggles whether completed tasks are listed.
 - **Right pane** — slim header with a sidebar-toggle button and the
-  current task's title, then the `GtkSourceView` editor.
+  current task's title, then a horizontal `Gtk.Paned`:
+  - **Middle: subtask panel** ([`ui/subtask_panel.py`](../src/devpane/ui/subtask_panel.py))
+    — owned by the currently selected task. One row per subtask, with a
+    checkbox, a click-to-edit `GtkEditableLabel` for the text, and a
+    hover-visible 🗑 delete button. Rows are draggable for reordering
+    (the drop indicator is a 2px accent-color underline / overline on
+    the target row). The whole list is persisted to a JSON sidecar at
+    `$XDG_DATA_HOME/devpane/subtasks/<task-stem>.json` on every
+    mutation. Empty-string commit removes the row, which means adding
+    a subtask and pressing Escape with no text simply cancels.
+  - **Right: editor** — the existing `GtkSourceView`. Notes belong to
+    the parent task only; subtasks don't have their own notes.
+
+The paned position is persisted in `Prefs.subtask_panel_width` and
+clamped to `[120, 600]` on load.
 
 | Control | Shortcut | Action |
 |---------|----------|--------|
@@ -129,7 +145,8 @@ The pane uses an `Adw.OverlaySplitView`:
 | Sidebar toggle | `Ctrl+B` | Show/hide the task list. Visibility is persisted in prefs. |
 | Previous / next sprint | `Alt+Left` / `Alt+Right` | Navigate to the adjacent sprint. Disabled at the chronological ends — sprints exist only when at least one task references them. Shortcuts are installed in capture phase so the editor's word-jump bindings don't swallow them. |
 | Show-completed switch | — | Hide done tasks (default) or list them at the bottom, dimmed and struck through. |
-| Row right-click | — | Context menu: **Rename** (frontmatter title only — the file is not renamed), **Move to next sprint** / **Move to previous sprint** (creates a new sprint dated now if migrating past the last existing one; "previous" is disabled at sprint 1), and **Delete** (`Adw.AlertDialog` confirmation; falls back to another task in the same sprint, then to an adjacent sprint, then to `scratch.md`). |
+| Row right-click | — | Context menu: **Rename** (frontmatter title only — the file is not renamed), **Move to next sprint** / **Move to previous sprint** (creates a new sprint dated now if migrating past the last existing one; "previous" is disabled at sprint 1), and **Delete** (`Adw.AlertDialog` confirmation; falls back to another task in the same sprint, then to an adjacent sprint, then to `scratch.md`. The task's subtask sidecar is removed in the same step). |
+| Task row progress | — | Tasks with subtasks show a dim `n/m` suffix next to the title (completed/total). Refreshed automatically whenever any subtask is mutated. |
 | (Escape key) | `Escape` | Hide the pane (flushing autosave first). |
 
 Switching tasks always flushes the previous task's autosave before

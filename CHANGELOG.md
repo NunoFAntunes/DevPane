@@ -25,6 +25,16 @@ uses [Semantic Versioning](https://semver.org/).
   frontmatter parser (no PyYAML dependency).
 - `Prefs.show_sidebar`, `Prefs.show_completed` — persisted across
   daemon restarts.
+- **Subtasks.** Each task can have an ordered list of subtasks stored
+  in a JSON sidecar at `$XDG_DATA_HOME/devpane/subtasks/<stem>.json`.
+  A new middle pane (sits between the task list and the editor, with
+  a draggable separator persisted in `Prefs.subtask_panel_width`)
+  shows the current task's subtasks: checkbox + click-to-edit text +
+  hover-visible delete button. Rows are reorderable by drag-and-drop
+  within the current task. Empty-string commit removes a row.
+  Sidecars are cleaned up automatically when the parent task is
+  deleted. The task list sidebar shows an `n/m` progress suffix on
+  tasks that have subtasks.
 - **Sprints.** Tasks are grouped into sprints, identified by an ISO
   timestamp stored in the `sprint:` frontmatter field. A new sprint
   bar above the task list shows the current sprint name with prev/next

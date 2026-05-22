@@ -36,6 +36,7 @@ class Prefs:
     show_sidebar: bool = True
     show_completed: bool = False
     current_sprint: str | None = None
+    subtask_panel_width: int = 240
 
     @classmethod
     def load(cls) -> Prefs:
@@ -60,6 +61,7 @@ class Prefs:
                 if isinstance(data.get("current_sprint"), str)
                 else None
             ),
+            subtask_panel_width=_clamp_panel(data.get("subtask_panel_width", 240)),
         )
 
     def save(self) -> None:
@@ -76,3 +78,11 @@ def _clamp_ratio(v: object) -> float:
     except (TypeError, ValueError):
         return _DEFAULT_HEIGHT_RATIO
     return max(0.2, min(0.95, f))
+
+
+def _clamp_panel(v: object) -> int:
+    try:
+        n = int(v)  # type: ignore[call-overload]
+    except (TypeError, ValueError):
+        return 240
+    return int(max(120, min(600, n)))
