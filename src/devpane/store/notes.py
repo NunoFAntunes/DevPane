@@ -185,6 +185,24 @@ def set_title(name: str, title: str) -> None:
     write_task(name, meta, body)
 
 
+def get_sprint(name: str) -> str | None:
+    """Return the task's sprint id, or ``None`` if it has none."""
+    meta, _ = read_task(name)
+    sid = meta.get("sprint", "").strip()
+    return sid or None
+
+
+def set_sprint(name: str, sprint_id: str) -> None:
+    """Move a task into ``sprint_id``. Empty/blank id removes the field."""
+    meta, body = read_task(name)
+    sid = sprint_id.strip()
+    if sid:
+        meta["sprint"] = sid
+    else:
+        meta.pop("sprint", None)
+    write_task(name, meta, body)
+
+
 def mtime(name: str) -> float:
     return path_for(name).stat().st_mtime
 

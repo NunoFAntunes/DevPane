@@ -13,6 +13,22 @@ window.devpane-window {
     line-height: 1.4;
 }
 
+/* Sprint bar */
+
+.sprint-bar {
+    padding: 4px 6px;
+    border-bottom: 1px solid alpha(currentColor, 0.12);
+}
+
+.sprint-bar button.flat {
+    min-width: 28px;
+    min-height: 28px;
+}
+
+.sprint-bar button.sprint-name {
+    font-weight: bold;
+}
+
 /* Task list sidebar */
 
 .task-list-header {

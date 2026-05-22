@@ -35,6 +35,7 @@ class Prefs:
     animate: bool = True
     show_sidebar: bool = True
     show_completed: bool = False
+    current_sprint: str | None = None
 
     @classmethod
     def load(cls) -> Prefs:
@@ -54,6 +55,11 @@ class Prefs:
             animate=bool(data.get("animate", True)),
             show_sidebar=bool(data.get("show_sidebar", True)),
             show_completed=bool(data.get("show_completed", False)),
+            current_sprint=(
+                data.get("current_sprint")
+                if isinstance(data.get("current_sprint"), str)
+                else None
+            ),
         )
 
     def save(self) -> None:

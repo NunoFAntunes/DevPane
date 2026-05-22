@@ -65,6 +65,7 @@ Recognized fields (all optional, string-valued):
 | `title` | Display name in the task sidebar. Defaults to the filename stem. |
 | `done` | `"true"` if the task is completed, `"false"` otherwise. Defaults to `"false"`. |
 | `created` | ISO-ish timestamp written when a task is created from the UI. Informational. |
+| `sprint` | ISO timestamp identifying the sprint this task belongs to. See **Sprints** below. |
 
 The parser (`store.notes._parse_frontmatter`) is deliberately minimal —
 flat `key: value` scalars only, with optional surrounding single or
@@ -83,6 +84,43 @@ Helper functions in `store.notes`:
 The editor only ever sees `body`; the autosave path reads the existing
 `meta` from disk and writes it back unchanged on every save, so manual
 edits to frontmatter are not destroyed by typing.
+
+## Sprints
+
+Tasks are grouped into **sprints**. A sprint is identified by an ISO
+timestamp written when the sprint first comes into existence (typically:
+a task is migrated past the last existing sprint, or the first task is
+created on a fresh install). The id is stored in each task's
+`sprint:` frontmatter field; sprints are therefore **emergent** —
+`store.sprints.list_existing()` rebuilds the list by scanning every
+task on disk.
+
+Display names default to the date portion of the id (`YYYY-MM-DD`).
+Renames are persisted in:
+
+```
+$XDG_DATA_HOME/devpane/sprints.json   # {sprint_id: display_name}
+```
+
+The registry contains rename overrides only — deleting it loses names
+but not sprint membership. Empty / whitespace / default-equal names
+remove the override.
+
+API in [`store/sprints.py`](../src/devpane/store/sprints.py):
+
+- `Sprint(id, name)` — materialized for the UI.
+- `list_existing() -> list[Sprint]` — sorted chronologically.
+- `next_of(id, sprints)`, `prev_of(id, sprints)` — navigation helpers.
+- `new_sprint_id(now?) -> str` — mint a fresh id from the clock.
+- `rename_sprint(id, name)` — persist a name override.
+- `bootstrap_existing()` — one-shot: assign a sprint id to any
+  un-sprinted task on disk (reuses the most recent existing id, or
+  mints a new one if none exists). Called by the daemon at startup.
+
+On `store.notes`:
+
+- `get_sprint(name) -> str | None`
+- `set_sprint(name, id)` — atomic write, preserves body and other meta.
 
 ## Atomic writes
 

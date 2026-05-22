@@ -25,6 +25,19 @@ uses [Semantic Versioning](https://semver.org/).
   frontmatter parser (no PyYAML dependency).
 - `Prefs.show_sidebar`, `Prefs.show_completed` — persisted across
   daemon restarts.
+- **Sprints.** Tasks are grouped into sprints, identified by an ISO
+  timestamp stored in the `sprint:` frontmatter field. A new sprint
+  bar above the task list shows the current sprint name with prev/next
+  arrows (`Alt+Left` / `Alt+Right`); arrows are disabled at the
+  chronological ends since sprints exist only when at least one task
+  references them. Clicking the name opens a rename dialog; overrides
+  are persisted in `$XDG_DATA_HOME/devpane/sprints.json` and default
+  to the date portion of the id. Row context menu gains **Move to
+  next sprint** / **Move to previous sprint**; "next" creates a new
+  sprint dated now when migrating past the last existing one. New
+  tasks inherit the current sprint. On startup, any un-sprinted task
+  on disk is bootstrapped into one shared sprint so legacy notes stay
+  visible.
 
 ## [0.1.0] — 2026-05-18
 

@@ -84,14 +84,20 @@ class TaskList:
         on_select: Callable[[str], None],
         on_new: Callable[[], None],
         on_delete: Callable[[str], None],
+        on_migrate_next: Callable[[str], None],
+        on_migrate_prev: Callable[[str], None],
         show_completed: bool,
     ) -> None:
         self._on_select = on_select
         self._on_new = on_new
         self._on_delete = on_delete
+        self._on_migrate_next = on_migrate_next
+        self._on_migrate_prev = on_migrate_prev
         self._show_completed = show_completed
         self._suppress_select = False
         self._current: str | None = None
+        self._current_sprint: str | None = None
+        self._can_migrate_prev: bool = False
 
         self.widget = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.widget.add_css_class("task-list")
@@ -152,6 +158,9 @@ class TaskList:
             except (OSError, notes.InvalidNoteName) as e:
                 _log.warning("task-list: skipping %s (%s)", name, e)
                 continue
+            sprint = meta.get("sprint", "").strip() or None
+            if self._current_sprint is not None and sprint != self._current_sprint:
+                continue
             done = meta.get("done", "").lower() == "true"
             if done and not self._show_completed:
                 continue
@@ -194,6 +203,27 @@ class TaskList:
     @property
     def show_completed(self) -> bool:
         return self._show_completed
+
+    def set_sprint(self, sprint_id: str | None, can_migrate_prev: bool) -> None:
+        """Filter the list to ``sprint_id`` and refresh.
+
+        ``can_migrate_prev`` controls whether the "Move to previous
+        sprint" context menu item is enabled (the window knows whether
+        an earlier sprint exists).
+        """
+        self._current_sprint = sprint_id
+        self._can_migrate_prev = can_migrate_prev
+        self.refresh()
+
+    def visible_names(self) -> list[str]:
+        """Names of tasks currently shown (post sprint + completed filter)."""
+        out: list[str] = []
+        child = self._listbox.get_first_child()
+        while child is not None:
+            if isinstance(child, TaskRow):
+                out.append(child.name)
+            child = child.get_next_sibling()
+        return out
 
     def set_show_completed(self, value: bool) -> None:
         if value == self._show_completed:
@@ -249,6 +279,10 @@ class TaskList:
     def _build_menu_model(self) -> Gio.Menu:
         menu = Gio.Menu()
         menu.append("Rename", "task.rename")
+        move = Gio.Menu()
+        move.append("Move to next sprint", "task.migrate-next")
+        move.append("Move to previous sprint", "task.migrate-prev")
+        menu.append_section(None, move)
         menu.append("Delete", "task.delete")
         return menu
 
@@ -260,6 +294,12 @@ class TaskList:
         delete_a = Gio.SimpleAction.new("delete", None)
         delete_a.connect("activate", lambda *_: self._delete_current())
         group.add_action(delete_a)
+        self._migrate_next_a = Gio.SimpleAction.new("migrate-next", None)
+        self._migrate_next_a.connect("activate", lambda *_: self._migrate_next_current())
+        group.add_action(self._migrate_next_a)
+        self._migrate_prev_a = Gio.SimpleAction.new("migrate-prev", None)
+        self._migrate_prev_a.connect("activate", lambda *_: self._migrate_prev_current())
+        group.add_action(self._migrate_prev_a)
         self._action_group = group
         # Insert into the popover itself once it has a parent (set per-open).
 
@@ -271,6 +311,8 @@ class TaskList:
             self._menu.unparent()
         self._menu.set_parent(row)
         self._menu.insert_action_group("task", self._action_group)
+        self._migrate_prev_a.set_enabled(self._can_migrate_prev)
+        self._migrate_next_a.set_enabled(self._current_sprint is not None)
         rect = Gdk.Rectangle()
         rect.x = int(x)
         rect.y = int(y)
@@ -314,6 +356,14 @@ class TaskList:
         dialog.connect("response", _on_response)
         parent = self.widget.get_root()
         dialog.present(parent)
+
+    def _migrate_next_current(self) -> None:
+        if self._menu_target is not None:
+            self._on_migrate_next(self._menu_target)
+
+    def _migrate_prev_current(self) -> None:
+        if self._menu_target is not None:
+            self._on_migrate_prev(self._menu_target)
 
     def _delete_current(self) -> None:
         name = self._menu_target

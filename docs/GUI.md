@@ -110,26 +110,50 @@ follows the system light/dark setting automatically.
 
 The pane uses an `Adw.OverlaySplitView`:
 
-- **Left sidebar** ([`ui/task_list.py`](../src/devpane/ui/task_list.py)) —
-  one row per `.md` file, with a checkbox for the done state and a label
-  showing the task title (`meta['title']` from frontmatter, falling back
-  to the filename stem). Selecting a row opens that file in the editor.
-  A footer switch toggles whether completed tasks are listed.
+- **Left sidebar** — a sprint bar above a task list:
+  - [`ui/sprint_bar.py`](../src/devpane/ui/sprint_bar.py) — previous /
+    next arrow buttons flanking the current sprint's display name.
+    Clicking the name opens a rename dialog.
+  - [`ui/task_list.py`](../src/devpane/ui/task_list.py) — one row per
+    `.md` file belonging to the current sprint, with a checkbox for
+    the done state and a label showing the task title
+    (`meta['title']` from frontmatter, falling back to the filename
+    stem). Selecting a row opens that file in the editor. A footer
+    switch toggles whether completed tasks are listed.
 - **Right pane** — slim header with a sidebar-toggle button and the
   current task's title, then the `GtkSourceView` editor.
 
 | Control | Shortcut | Action |
 |---------|----------|--------|
-| ＋ new-task button | `Ctrl+N` | Create `note-YYYYMMDD-HHMM.md` (auto-suffixed on collisions) with `done: false` frontmatter and select it. |
+| ＋ new-task button | `Ctrl+N` | Create `note-YYYYMMDD-HHMM.md` (auto-suffixed on collisions) with `done: false` and the current sprint stamped into frontmatter, and select it. If no sprint exists yet, a new one is minted with the current timestamp. |
 | Sidebar toggle | `Ctrl+B` | Show/hide the task list. Visibility is persisted in prefs. |
+| Previous / next sprint | `Alt+Left` / `Alt+Right` | Navigate to the adjacent sprint. Disabled at the chronological ends — sprints exist only when at least one task references them. Shortcuts are installed in capture phase so the editor's word-jump bindings don't swallow them. |
 | Show-completed switch | — | Hide done tasks (default) or list them at the bottom, dimmed and struck through. |
-| Row right-click | — | Context menu: **Rename** (changes the displayed title via frontmatter; the underlying file is not renamed) and **Delete** (`Adw.AlertDialog` confirmation; falls back to the most-recent remaining task, creating `scratch.md` if the list is empty). |
+| Row right-click | — | Context menu: **Rename** (frontmatter title only — the file is not renamed), **Move to next sprint** / **Move to previous sprint** (creates a new sprint dated now if migrating past the last existing one; "previous" is disabled at sprint 1), and **Delete** (`Adw.AlertDialog` confirmation; falls back to another task in the same sprint, then to an adjacent sprint, then to `scratch.md`). |
 | (Escape key) | `Escape` | Hide the pane (flushing autosave first). |
 
 Switching tasks always flushes the previous task's autosave before
 loading the new one. Toggling a checkbox writes `done: true|false` into
 the task's frontmatter and re-sorts the list (open tasks first by mtime
 desc, then completed tasks below if shown).
+
+### Sprint lifecycle
+
+Sprints are **emergent**: a sprint exists when at least one task's
+frontmatter carries its id (an ISO timestamp). The sidebar's sprint list
+is recomputed by scanning frontmatter every `show_pane` and every
+mutation. There is no separate "sprints database" — only an optional
+rename registry at `$XDG_DATA_HOME/devpane/sprints.json` mapping
+`{sprint_id: display_name}`. Default display name = the date portion of
+the id (`YYYY-MM-DD`).
+
+On daemon startup, [`store/sprints.py`](../src/devpane/store/sprints.py)
+runs `bootstrap_existing()`: if any tasks lack a `sprint:` field
+(pre-existing notes or external file drops), they're all assigned to a
+single sprint id — the most recent existing one, or a freshly-minted one
+if no sprint exists at all. This keeps the rule "tasks are always in
+exactly one sprint" without forcing the user to think about migration
+on upgrade.
 
 ## Index integration
 

@@ -33,9 +33,10 @@ from gi.repository import Adw, Gdk, GLib, Gtk  # noqa: E402
 
 _ANIMATION_MS = 180
 
-from devpane.store import notes  # noqa: E402
+from devpane.store import notes, sprints  # noqa: E402
 from devpane.ui.editor import NoteEditor  # noqa: E402
 from devpane.ui.prefs import Prefs  # noqa: E402
+from devpane.ui.sprint_bar import SprintBar  # noqa: E402
 from devpane.ui.task_list import TaskList  # noqa: E402
 
 if TYPE_CHECKING:
@@ -84,11 +85,19 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         self._slide_anim: Adw.TimedAnimation | None = None
 
         self._editor = NoteEditor(conn)
+        self._current_sprint: str | None = None
         self._task_list = TaskList(
             on_select=self._switch_to,
             on_new=self._new_task,
             on_delete=self._delete_task,
+            on_migrate_next=self._migrate_next,
+            on_migrate_prev=self._migrate_prev,
             show_completed=self._prefs.show_completed,
+        )
+        self._sprint_bar = SprintBar(
+            on_prev=self._sprint_prev,
+            on_next=self._sprint_next,
+            on_rename=self._sprint_rename,
         )
 
         # --- right pane: slim header + editor -----------------------------
@@ -109,9 +118,15 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         right_view.add_top_bar(right_header)
         right_view.set_content(self._editor)
 
+        # --- sidebar: sprint bar above task list --------------------------
+        sidebar_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        sidebar_box.append(self._sprint_bar.widget)
+        sidebar_box.append(self._task_list.widget)
+        self._task_list.widget.set_vexpand(True)
+
         # --- split view ---------------------------------------------------
         self._split = Adw.OverlaySplitView()
-        self._split.set_sidebar(self._task_list.widget)
+        self._split.set_sidebar(sidebar_box)
         self._split.set_content(right_view)
         self._split.set_sidebar_width_fraction(0.22)
         self._split.set_min_sidebar_width(220)
@@ -124,12 +139,19 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         adapter.configure(self)
         _log.info("window: configured for adapter %s", adapter.name)
 
-        # Ensure a default note exists so first show has content to load.
+        # Ensure a default note exists so first show has content to load,
+        # then ensure every task is assigned to a sprint (one-shot migration
+        # for any pre-existing un-sprinted notes).
         notes.ensure_default()
+        sprints.bootstrap_existing()
+
+        existing = sprints.list_existing()
+        self._current_sprint = self._choose_initial_sprint(existing)
+        self._refresh_sidebar()
+
         startup_note = self._prefs.last_note or notes.DEFAULT_NOTE
-        if not notes.exists(startup_note):
-            startup_note = notes.DEFAULT_NOTE
-        self._task_list.refresh()
+        if not notes.exists(startup_note) or notes.get_sprint(startup_note) != self._current_sprint:
+            startup_note = self._first_visible_task() or notes.DEFAULT_NOTE
         self._load(startup_note)
 
     # ---- visibility ----
@@ -141,7 +163,7 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         # Re-read the active note's text + cursor from disk so external
         # edits and the cursor saved at hide-time both take effect.
         self._editor.refresh()
-        self._task_list.refresh()
+        self._refresh_sidebar()
         if self._editor.current_note is not None:
             self._task_list.select(self._editor.current_note)
             self._title_widget.set_subtitle(notes.get_title(self._editor.current_note))
@@ -162,6 +184,7 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
             self._prefs.last_note = self._editor.current_note
         self._prefs.show_sidebar = self._split.get_show_sidebar()
         self._prefs.show_completed = self._task_list.show_completed
+        self._prefs.current_sprint = self._current_sprint
         try:
             self._prefs.save()
         except OSError as e:
@@ -181,6 +204,9 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
 
     def _install_shortcuts(self) -> None:
         controller = Gtk.EventControllerKey()
+        # Capture phase: window-level chords (Esc, Ctrl+N/B, Alt+Arrow) must
+        # win over editor word-jump bindings on Alt+Left/Right.
+        controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
         controller.connect("key-pressed", self._on_key_pressed)
         self.add_controller(controller)
 
@@ -201,6 +227,13 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         if ctrl and keyval in (Gdk.KEY_b, Gdk.KEY_B):
             self._sidebar_btn.set_active(not self._sidebar_btn.get_active())
             return True
+        alt = bool(state & Gdk.ModifierType.ALT_MASK)
+        if alt and keyval == Gdk.KEY_Left:
+            self._sprint_prev()
+            return True
+        if alt and keyval == Gdk.KEY_Right:
+            self._sprint_next()
+            return True
         return False
 
     def _on_sidebar_toggled(self, btn: Gtk.ToggleButton) -> None:
@@ -217,9 +250,15 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
             suffix += 1
             name = f"{base}-{suffix}.md"
         created = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-        notes.write_task(name, {"created": created, "done": "false"}, "")
-        _log.info("window: new task %s", name)
-        self._task_list.refresh()
+        # If no sprint exists yet (fresh install, first task), mint one now —
+        # the rule "sprints come into being when a task lands in them" means
+        # this is the moment to create the first sprint.
+        if self._current_sprint is None:
+            self._current_sprint = sprints.new_sprint_id()
+        meta = {"created": created, "done": "false", "sprint": self._current_sprint}
+        notes.write_task(name, meta, "")
+        _log.info("window: new task %s (sprint %s)", name, self._current_sprint)
+        self._refresh_sidebar()
         self._switch_to(name)
         self._editor.focus()
 
@@ -228,19 +267,106 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         was_current = self._editor.current_note == canon
         notes.delete(canon)
         _log.info("window: deleted task %s", canon)
-
+        self._refresh_sidebar()
         if was_current:
-            # Pick a fallback (most-recent remaining task), or create one.
-            remaining = notes.list_notes()
-            if remaining:
-                fallback = remaining[0]
-            else:
-                notes.ensure_default()
-                fallback = notes.DEFAULT_NOTE
-            self._task_list.refresh()
+            fallback = self._first_visible_task()
+            if fallback is None:
+                # Sprint is now empty. Hop to an adjacent sprint if any
+                # exists; otherwise fall back to the default scratch note.
+                existing = sprints.list_existing()
+                if existing:
+                    self._current_sprint = existing[0].id
+                    self._refresh_sidebar()
+                    fallback = self._first_visible_task()
+                if fallback is None:
+                    notes.ensure_default()
+                    sprints.bootstrap_existing()
+                    self._current_sprint = notes.get_sprint(notes.DEFAULT_NOTE)
+                    self._refresh_sidebar()
+                    fallback = notes.DEFAULT_NOTE
             self._load(fallback)
-        else:
-            self._task_list.refresh()
+
+    # ---- sprint navigation -----------------------------------------------
+
+    def _sprint_prev(self) -> None:
+        existing = sprints.list_existing()
+        target = sprints.prev_of(self._current_sprint, existing)
+        if target is None:
+            return
+        self._current_sprint = target.id
+        self._refresh_sidebar()
+        first = self._first_visible_task()
+        if first is not None:
+            self._load(first)
+
+    def _sprint_next(self) -> None:
+        existing = sprints.list_existing()
+        target = sprints.next_of(self._current_sprint, existing)
+        if target is None:
+            return
+        self._current_sprint = target.id
+        self._refresh_sidebar()
+        first = self._first_visible_task()
+        if first is not None:
+            self._load(first)
+
+    def _sprint_rename(self, sprint_id: str, new_name: str) -> None:
+        sprints.rename_sprint(sprint_id, new_name)
+        self._refresh_sidebar()
+
+    # ---- task migration --------------------------------------------------
+
+    def _migrate_next(self, task_name: str) -> None:
+        existing = sprints.list_existing()
+        target = sprints.next_of(self._current_sprint, existing)
+        target_id = target.id if target is not None else sprints.new_sprint_id()
+        self._do_migrate(task_name, target_id)
+
+    def _migrate_prev(self, task_name: str) -> None:
+        existing = sprints.list_existing()
+        target = sprints.prev_of(self._current_sprint, existing)
+        if target is None:
+            return
+        self._do_migrate(task_name, target.id)
+
+    def _do_migrate(self, task_name: str, target_sprint: str) -> None:
+        canon = notes.canonical_name(task_name)
+        try:
+            notes.set_sprint(canon, target_sprint)
+        except OSError as e:
+            _log.warning("window: migrate %s failed (%s)", canon, e)
+            return
+        _log.info("window: migrated %s -> sprint %s", canon, target_sprint)
+        was_current = self._editor.current_note == canon
+        self._refresh_sidebar()
+        if was_current:
+            fallback = self._first_visible_task()
+            if fallback is not None:
+                self._load(fallback)
+
+    # ---- helpers ---------------------------------------------------------
+
+    def _refresh_sidebar(self) -> None:
+        existing = sprints.list_existing()
+        if existing and (self._current_sprint is None
+                         or not any(s.id == self._current_sprint for s in existing)):
+            self._current_sprint = existing[-1].id
+        self._sprint_bar.set_state(existing, self._current_sprint)
+        has_prev = sprints.prev_of(self._current_sprint, existing) is not None
+        self._task_list.set_sprint(self._current_sprint, has_prev)
+
+    def _first_visible_task(self) -> str | None:
+        names = self._task_list.visible_names()
+        return names[0] if names else None
+
+    def _choose_initial_sprint(self, existing: list[sprints.Sprint]) -> str | None:
+        if not existing:
+            return None
+        if self._prefs.current_sprint and any(
+            s.id == self._prefs.current_sprint for s in existing
+        ):
+            return self._prefs.current_sprint
+        return existing[-1].id
 
     def _switch_to(self, name: str) -> None:
         self._load(name)
