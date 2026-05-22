@@ -44,6 +44,46 @@ Implemented in `store.notes.canonical_name`:
 These rules apply at the API boundary — callers can pass either `"foo"` or
 `"foo.md"` interchangeably.
 
+## Task frontmatter
+
+Each note doubles as a task. Task metadata lives in an optional
+frontmatter block at the top of the file, delimited by `---` lines:
+
+```markdown
+---
+title: Buy milk
+done: false
+created: 2026-05-22T18:30:00
+---
+note body goes here
+```
+
+Recognized fields (all optional, string-valued):
+
+| Key | Meaning |
+|-----|---------|
+| `title` | Display name in the task sidebar. Defaults to the filename stem. |
+| `done` | `"true"` if the task is completed, `"false"` otherwise. Defaults to `"false"`. |
+| `created` | ISO-ish timestamp written when a task is created from the UI. Informational. |
+
+The parser (`store.notes._parse_frontmatter`) is deliberately minimal —
+flat `key: value` scalars only, with optional surrounding single or
+double quotes. A missing or malformed block is treated as no
+frontmatter, so plain pre-existing `.md` files keep working as undone
+tasks titled by their filename stem.
+
+Helper functions in `store.notes`:
+
+- `read_task(name) -> (meta, body)` — parse on read.
+- `write_task(name, meta, body)` — atomic write with header.
+- `is_done(name)`, `get_title(name)` — convenience readers.
+- `set_done(name, bool)`, `set_title(name, str)` — preserve existing
+  fields and body.
+
+The editor only ever sees `body`; the autosave path reads the existing
+`meta` from disk and writes it back unchanged on every save, so manual
+edits to frontmatter are not destroyed by typing.
+
 ## Atomic writes
 
 `store.notes.write_atomic` ensures the on-disk file is never partially

@@ -88,3 +88,75 @@ def test_cleanup_orphans_leaves_unrelated_dotfiles(xdg_tmp: Path) -> None:
     (d / ".scratch.md.abc.tmp").write_text("x")
     assert notes.cleanup_orphans() == 1
     assert (d / ".gitkeep").exists()
+
+
+# ---- task frontmatter ----------------------------------------------------
+
+
+def test_read_task_no_frontmatter(xdg_tmp: Path) -> None:
+    notes.write_atomic("plain", "just a body")
+    meta, body = notes.read_task("plain")
+    assert meta == {}
+    assert body == "just a body"
+
+
+def test_write_task_round_trip(xdg_tmp: Path) -> None:
+    notes.write_task("t", {"title": "Buy milk", "done": "false"}, "details\nhere")
+    meta, body = notes.read_task("t")
+    assert meta == {"title": "Buy milk", "done": "false"}
+    assert body == "details\nhere"
+
+
+def test_write_task_empty_meta_writes_body_only(xdg_tmp: Path) -> None:
+    notes.write_task("t", {}, "hi")
+    assert notes.read("t") == "hi"
+
+
+def test_set_done_preserves_body_and_meta(xdg_tmp: Path) -> None:
+    notes.write_task("t", {"title": "X"}, "body")
+    notes.set_done("t", True)
+    meta, body = notes.read_task("t")
+    assert meta["title"] == "X"
+    assert meta["done"] == "true"
+    assert body == "body"
+    assert notes.is_done("t") is True
+    notes.set_done("t", False)
+    assert notes.is_done("t") is False
+
+
+def test_set_title_on_plain_note(xdg_tmp: Path) -> None:
+    notes.write_atomic("plain", "body")
+    notes.set_title("plain", "Pretty Title")
+    meta, body = notes.read_task("plain")
+    assert meta == {"title": "Pretty Title"}
+    assert body == "body"
+
+
+def test_get_title_falls_back_to_stem(xdg_tmp: Path) -> None:
+    notes.write_atomic("scratch", "x")
+    assert notes.get_title("scratch") == "scratch"
+    notes.set_title("scratch", "Nice")
+    assert notes.get_title("scratch") == "Nice"
+
+
+def test_malformed_frontmatter_treated_as_body(xdg_tmp: Path) -> None:
+    # Missing closing ``---`` — entire content should be returned as body.
+    notes.write_atomic("bad", "---\ntitle: x\nbody without close")
+    meta, body = notes.read_task("bad")
+    assert meta == {}
+    assert body == "---\ntitle: x\nbody without close"
+
+
+def test_frontmatter_with_quoted_values(xdg_tmp: Path) -> None:
+    notes.write_atomic("q", '---\ntitle: "Hello: World"\n---\nbody')
+    meta, body = notes.read_task("q")
+    assert meta["title"] == "Hello: World"
+    assert body == "body"
+
+
+def test_set_title_empty_removes_field(xdg_tmp: Path) -> None:
+    notes.write_task("t", {"title": "Old", "done": "false"}, "b")
+    notes.set_title("t", "  ")
+    meta, _ = notes.read_task("t")
+    assert "title" not in meta
+    assert meta.get("done") == "false"

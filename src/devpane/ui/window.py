@@ -1,8 +1,8 @@
 """DropDownWindow — the visible drop-down pane.
 
-Hosts the markdown editor and header. Lifecycle:
+Hosts a left-side task list and a markdown editor on the right. Lifecycle:
 
-- ``show_pane()`` reloads the current note from disk (so external edits
+- ``show_pane()`` reloads the current task from disk (so external edits
   are visible), then presents and focuses the editor.
 - ``hide_pane()`` flushes any pending autosave so quitting/hiding never
   loses unsaved text.
@@ -10,8 +10,8 @@ Hosts the markdown editor and header. Lifecycle:
 Keyboard bindings (window-local):
 
 - ``Escape``      hide the pane
-- ``Ctrl+N``      create a new note (auto-named) and switch to it
-- ``Ctrl+K``      open the note switcher popover
+- ``Ctrl+N``      create a new task (auto-named) and switch to it
+- ``Ctrl+B``      toggle the task sidebar
 """
 
 from __future__ import annotations
@@ -35,8 +35,8 @@ _ANIMATION_MS = 180
 
 from devpane.store import notes  # noqa: E402
 from devpane.ui.editor import NoteEditor  # noqa: E402
-from devpane.ui.header import PaneHeader  # noqa: E402
 from devpane.ui.prefs import Prefs  # noqa: E402
+from devpane.ui.task_list import TaskList  # noqa: E402
 
 if TYPE_CHECKING:
     from devpane.platform.adapter import PlatformAdapter
@@ -84,12 +84,40 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         self._slide_anim: Adw.TimedAnimation | None = None
 
         self._editor = NoteEditor(conn)
-        self._header = PaneHeader(on_new=self._new_note, on_switch_to=self._switch_to)
+        self._task_list = TaskList(
+            on_select=self._switch_to,
+            on_new=self._new_task,
+            on_delete=self._delete_task,
+            show_completed=self._prefs.show_completed,
+        )
 
-        toolbar_view = Adw.ToolbarView()
-        toolbar_view.add_top_bar(self._header.widget)
-        toolbar_view.set_content(self._editor)
-        self.set_content(toolbar_view)
+        # --- right pane: slim header + editor -----------------------------
+        self._title_widget = Adw.WindowTitle.new("DevPane", "")
+        right_header = Adw.HeaderBar()
+        right_header.set_show_end_title_buttons(False)
+        right_header.set_show_start_title_buttons(False)
+        right_header.set_title_widget(self._title_widget)
+
+        self._sidebar_btn = Gtk.ToggleButton()
+        self._sidebar_btn.set_icon_name("sidebar-show-symbolic")
+        self._sidebar_btn.set_tooltip_text("Toggle task list (Ctrl+B)")
+        self._sidebar_btn.set_active(self._prefs.show_sidebar)
+        self._sidebar_btn.connect("toggled", self._on_sidebar_toggled)
+        right_header.pack_start(self._sidebar_btn)
+
+        right_view = Adw.ToolbarView()
+        right_view.add_top_bar(right_header)
+        right_view.set_content(self._editor)
+
+        # --- split view ---------------------------------------------------
+        self._split = Adw.OverlaySplitView()
+        self._split.set_sidebar(self._task_list.widget)
+        self._split.set_content(right_view)
+        self._split.set_sidebar_width_fraction(0.22)
+        self._split.set_min_sidebar_width(220)
+        self._split.set_max_sidebar_width(360)
+        self._split.set_show_sidebar(self._prefs.show_sidebar)
+        self.set_content(self._split)
 
         self._install_shortcuts()
 
@@ -101,6 +129,7 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         startup_note = self._prefs.last_note or notes.DEFAULT_NOTE
         if not notes.exists(startup_note):
             startup_note = notes.DEFAULT_NOTE
+        self._task_list.refresh()
         self._load(startup_note)
 
     # ---- visibility ----
@@ -112,13 +141,12 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         # Re-read the active note's text + cursor from disk so external
         # edits and the cursor saved at hide-time both take effect.
         self._editor.refresh()
+        self._task_list.refresh()
         if self._editor.current_note is not None:
-            self._header.set_current_note(self._editor.current_note)
+            self._task_list.select(self._editor.current_note)
+            self._title_widget.set_subtitle(notes.get_title(self._editor.current_note))
         self._size_to_monitor()
         if self._prefs.animate:
-            # Start collapsed; animation expands to the target height. The
-            # window is anchored to the top edge (layer-shell) or simply
-            # decoration-less elsewhere, so growing height reads as a slide.
             self.set_default_size(self._target_width, 1)
         self.present()
         self._adapter.on_show(self)
@@ -129,15 +157,15 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         _log.debug("window: shown")
 
     def hide_pane(self) -> None:
-        # Always flush before hiding so nothing is in flight when we sleep.
         self._editor.flush()
-        # Persist the last-open note for the next daemon start.
         if self._editor.current_note is not None:
             self._prefs.last_note = self._editor.current_note
-            try:
-                self._prefs.save()
-            except OSError as e:
-                _log.warning("prefs: save failed (%s)", e)
+        self._prefs.show_sidebar = self._split.get_show_sidebar()
+        self._prefs.show_completed = self._task_list.show_completed
+        try:
+            self._prefs.save()
+        except OSError as e:
+            _log.warning("prefs: save failed (%s)", e)
         self._adapter.on_hide(self)
         self.set_visible(False)
         self._pane_visible = False
@@ -168,14 +196,17 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
             self.hide_pane()
             return True
         if ctrl and keyval in (Gdk.KEY_n, Gdk.KEY_N):
-            self._new_note()
+            self._new_task()
             return True
-        if ctrl and keyval in (Gdk.KEY_k, Gdk.KEY_K):
-            self._header.open_switcher()
+        if ctrl and keyval in (Gdk.KEY_b, Gdk.KEY_B):
+            self._sidebar_btn.set_active(not self._sidebar_btn.get_active())
             return True
         return False
 
-    def _new_note(self) -> None:
+    def _on_sidebar_toggled(self, btn: Gtk.ToggleButton) -> None:
+        self._split.set_show_sidebar(btn.get_active())
+
+    def _new_task(self) -> None:
         # Format: note-YYYYMMDD-HHMM. Append a counter if it collides
         # within the same minute.
         stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
@@ -185,9 +216,31 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         while notes.exists(name):
             suffix += 1
             name = f"{base}-{suffix}.md"
-        notes.write_atomic(name, "")
-        _log.info("window: new note %s", name)
+        created = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+        notes.write_task(name, {"created": created, "done": "false"}, "")
+        _log.info("window: new task %s", name)
+        self._task_list.refresh()
         self._switch_to(name)
+        self._editor.focus()
+
+    def _delete_task(self, name: str) -> None:
+        canon = notes.canonical_name(name)
+        was_current = self._editor.current_note == canon
+        notes.delete(canon)
+        _log.info("window: deleted task %s", canon)
+
+        if was_current:
+            # Pick a fallback (most-recent remaining task), or create one.
+            remaining = notes.list_notes()
+            if remaining:
+                fallback = remaining[0]
+            else:
+                notes.ensure_default()
+                fallback = notes.DEFAULT_NOTE
+            self._task_list.refresh()
+            self._load(fallback)
+        else:
+            self._task_list.refresh()
 
     def _switch_to(self, name: str) -> None:
         self._load(name)
@@ -195,14 +248,14 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
     def _load(self, name: str) -> None:
         self._editor.load_note(name)
         canon = notes.canonical_name(name)
-        self._header.set_current_note(canon)
+        self._title_widget.set_subtitle(notes.get_title(canon))
+        self._task_list.select(canon)
 
     def _size_to_monitor(self) -> None:
         # M6 picks the first reported monitor. Following the cursor across
         # monitors is not generally possible on Wayland without compositor
         # extensions; users on multi-monitor setups can configure their
-        # compositor to place DevPane on a specific output. We may revisit
-        # this with the GlobalShortcuts portal in a later milestone.
+        # compositor to place DevPane on a specific output.
         display = self.get_display()
         if display is None:
             return
@@ -219,7 +272,6 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
             self.set_default_size(self._target_width, self._target_height)
 
     def _animate_height(self, from_h: int, to_h: int) -> None:
-        # Cancel any in-flight animation so a rapid toggle doesn't stack.
         if self._slide_anim is not None:
             self._slide_anim.pause()
             self._slide_anim = None
@@ -253,7 +305,6 @@ class GtkController:
         return await self._call_on_main(self._window.toggle_pane)
 
     def is_visible(self) -> bool:
-        # Reading a bool across threads is fine in CPython.
         return self._window.is_pane_visible()
 
     async def _call_on_main(self, fn: Callable[[], None]) -> bool:

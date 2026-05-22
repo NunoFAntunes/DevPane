@@ -98,7 +98,7 @@ class NoteEditor(Gtk.Box):  # type: ignore[misc]
 
     def _load_into_buffer(self, canon: str) -> None:
         existed = notes.exists(canon)
-        body = notes.read(canon) if existed else ""
+        body = notes.read_task(canon)[1] if existed else ""
         # Touch first so the row exists; then read the cursor.
         index.touch(self._conn, canon, body)
         saved_offset = index.get_cursor(self._conn, canon) if existed else 0
@@ -137,7 +137,8 @@ class NoteEditor(Gtk.Box):  # type: ignore[misc]
             return
         start, end = self._buffer.get_bounds()
         text = self._buffer.get_text(start, end, False)
-        notes.write_atomic(self._current_note, text)
+        meta, _ = notes.read_task(self._current_note) if notes.exists(self._current_note) else ({}, "")
+        notes.write_task(self._current_note, meta, text)
         index.touch(self._conn, self._current_note, text)
         self._save_cursor_only()
         _log.debug("editor: saved %s (%d bytes)", self._current_note, len(text))

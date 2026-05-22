@@ -33,6 +33,8 @@ class Prefs:
     height_ratio: float = _DEFAULT_HEIGHT_RATIO
     last_note: str | None = None
     animate: bool = True
+    show_sidebar: bool = True
+    show_completed: bool = False
 
     @classmethod
     def load(cls) -> Prefs:
@@ -50,6 +52,8 @@ class Prefs:
             height_ratio=_clamp_ratio(data.get("height_ratio", _DEFAULT_HEIGHT_RATIO)),
             last_note=data.get("last_note") if isinstance(data.get("last_note"), str) else None,
             animate=bool(data.get("animate", True)),
+            show_sidebar=bool(data.get("show_sidebar", True)),
+            show_completed=bool(data.get("show_completed", False)),
         )
 
     def save(self) -> None:

@@ -106,20 +106,30 @@ detection is out of scope for v1.
 **Style scheme.** Tracks `Adw.StyleManager`'s `notify::dark` so the editor
 follows the system light/dark setting automatically.
 
-## Header + note switching
+## Task list + layout
 
-The pane's header bar (composition-wraps `Adw.HeaderBar` because that
-class is `final` in libadwaita) shows the current note name as a subtitle
-under "DevPane". Two controls:
+The pane uses an `Adw.OverlaySplitView`:
+
+- **Left sidebar** ([`ui/task_list.py`](../src/devpane/ui/task_list.py)) —
+  one row per `.md` file, with a checkbox for the done state and a label
+  showing the task title (`meta['title']` from frontmatter, falling back
+  to the filename stem). Selecting a row opens that file in the editor.
+  A footer switch toggles whether completed tasks are listed.
+- **Right pane** — slim header with a sidebar-toggle button and the
+  current task's title, then the `GtkSourceView` editor.
 
 | Control | Shortcut | Action |
 |---------|----------|--------|
-| 📄 new-note button | `Ctrl+N` | Create `note-YYYYMMDD-HHMM.md` (auto-suffixed on collisions) and switch to it. |
-| ☰ switcher button | `Ctrl+K` | Popover lists every `.md` in the notes dir, ordered by filename. Click to switch. |
+| ＋ new-task button | `Ctrl+N` | Create `note-YYYYMMDD-HHMM.md` (auto-suffixed on collisions) with `done: false` frontmatter and select it. |
+| Sidebar toggle | `Ctrl+B` | Show/hide the task list. Visibility is persisted in prefs. |
+| Show-completed switch | — | Hide done tasks (default) or list them at the bottom, dimmed and struck through. |
+| Row right-click | — | Context menu: **Rename** (changes the displayed title via frontmatter; the underlying file is not renamed) and **Delete** (`Adw.AlertDialog` confirmation; falls back to the most-recent remaining task, creating `scratch.md` if the list is empty). |
 | (Escape key) | `Escape` | Hide the pane (flushing autosave first). |
 
-Switching notes always flushes the previous note's autosave before
-loading the new one.
+Switching tasks always flushes the previous task's autosave before
+loading the new one. Toggling a checkbox writes `done: true|false` into
+the task's frontmatter and re-sorts the list (open tasks first by mtime
+desc, then completed tasks below if shown).
 
 ## Index integration
 

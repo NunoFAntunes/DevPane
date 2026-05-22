@@ -4,6 +4,28 @@ All notable changes to DevPane are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project
 uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- **Notes are tasks.** The old header switcher popover is replaced by a
+  persistent, collapsible left-side task list. Each row has a checkbox
+  for done state and a title (from optional markdown frontmatter,
+  falling back to the filename stem). Selecting a task opens its file
+  in the editor on the right. Completed tasks are hidden by default,
+  toggleable via a footer switch. Right-clicking a row offers
+  **Rename** (frontmatter title; file is not renamed) and **Delete**.
+  New shortcut `Ctrl+B` toggles the sidebar; `Ctrl+K` (old switcher)
+  is removed.
+
+### Added
+
+- `store.notes.read_task` / `write_task` / `set_done` / `set_title` /
+  `get_title` / `is_done` helpers, with a tiny built-in YAML-subset
+  frontmatter parser (no PyYAML dependency).
+- `Prefs.show_sidebar`, `Prefs.show_completed` — persisted across
+  daemon restarts.
+
 ## [0.1.0] — 2026-05-18
 
 First functionally complete release. Drop-down pane works end-to-end on

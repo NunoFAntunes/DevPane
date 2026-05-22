@@ -12,3 +12,31 @@ window.devpane-window {
     font-size: 11pt;
     line-height: 1.4;
 }
+
+/* Task list sidebar */
+
+.task-list-header {
+    padding: 8px 12px;
+}
+
+.task-list-footer {
+    padding: 8px 12px;
+    border-top: 1px solid alpha(currentColor, 0.12);
+}
+
+.task-row {
+    padding: 4px 8px;
+    border-radius: 6px;
+    margin: 1px 4px;
+}
+
+.task-row:selected {
+    background-color: alpha(@accent_bg_color, 0.18);
+    box-shadow: inset 3px 0 0 @accent_color;
+    color: inherit;
+}
+
+.task-row.task-done label {
+    opacity: 0.5;
+    text-decoration: line-through;
+}
