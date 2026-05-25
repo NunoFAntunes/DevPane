@@ -7,11 +7,13 @@ hides and your notes are persisted to disk as plain markdown. It is modeled on
 terminal — and built on a modern GTK4 + libadwaita stack.
 
 Beyond plain notes, DevPane organizes work as **tasks**: each `.md` file
-is a task with an optional title, done state, and subtasks. Tasks are
-grouped into **sprints** (chronological, emergent from frontmatter) and
+is a task with an optional title, a four-valued **status** (`todo`,
+`doing`, `blocked`, `done`), free-form **tags**, and subtasks. Tasks
+are grouped into **sprints** (chronological, emergent from frontmatter),
 each task can have an ordered list of **subtasks** (checkbox + text) in
-a JSON sidecar. The UI is three columns — task list, subtasks, notes —
-all driven by the same files-first store.
+a JSON sidecar, and the task list can be filtered by tag. The UI is
+three columns — task list, subtasks, notes — all driven by the same
+files-first store.
 
 ## Why it exists
 

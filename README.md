@@ -3,11 +3,13 @@
 Linux drop-down notetaking pane for developers. Press a key, type, press the
 key again — your notes are saved as plain markdown.
 
-Each note is also a **task**: it gets a title, a done state, and an
+Each note is also a **task**: it gets a title, a status
+(`todo` / `doing` / `blocked` / `done`), free-form tags, and an
 ordered list of **subtasks** (checkbox + text) shown in a middle pane
 between the task list and the editor. Tasks are grouped into **sprints**
 (chronological, emergent from frontmatter) and navigable with
-`Alt+Left` / `Alt+Right`.
+`Alt+Left` / `Alt+Right`. The sidebar supports tag filtering and
+shows per-sprint status counts.
 
 **Status:** alpha `v0.1.0` shipped (M0–M8 done); the task / sprint /
 subtask UI is on `main` as `Unreleased`. Packaging files (Arch PKGBUILD,

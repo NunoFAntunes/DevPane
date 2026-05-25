@@ -9,22 +9,50 @@ uses [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - **Notes are tasks.** The old header switcher popover is replaced by a
-  persistent, collapsible left-side task list. Each row has a checkbox
-  for done state and a title (from optional markdown frontmatter,
-  falling back to the filename stem). Selecting a task opens its file
-  in the editor on the right. Completed tasks are hidden by default,
-  toggleable via a footer switch. Right-clicking a row offers
-  **Rename** (frontmatter title; file is not renamed) and **Delete**.
-  New shortcut `Ctrl+B` toggles the sidebar; `Ctrl+K` (old switcher)
-  is removed.
+  persistent, collapsible left-side task list. Each row has a **status
+  pill** (`todo` / `doing` / `blocked` / `done`) and a title (from
+  optional markdown frontmatter, falling back to the filename stem).
+  Selecting a task opens its file in the editor on the right. Completed
+  tasks are hidden by default, toggleable via a compact neutral footer
+  switch. Right-clicking a row offers **Rename** (frontmatter title;
+  file is not renamed) and **Delete**. New shortcut `Ctrl+B` toggles
+  the sidebar; `Ctrl+K` (old switcher) is removed.
+- **New-task entry uses an inline sidebar form.** The header `+` is a
+  toggle that reveals a name + tags form under the header (also opened
+  by `Ctrl+N`). Enter submits, Escape closes. Replaces the previous
+  immediate-create flow.
+- **Subtask creation is inline.** The subtask panel no longer has a
+  `+` button. A permanent blank "Add subtask…" row at the bottom of
+  the list accepts typed text; Enter promotes it to a real subtask
+  and focus jumps to a fresh blank row for chained entry.
+- **`done:` is replaced by `status:`** in task frontmatter. Readers
+  fall back to the legacy `done: true` → `done` when `status:` is
+  absent; writes drop the legacy key, so the codebase migrates lazily
+  without an upfront rewrite pass.
 
 ### Added
 
+- **Task status enum.** Four-valued `status: todo|doing|blocked|done`
+  in frontmatter, with `store.notes.STATUSES` constants and
+  `get_status` / `set_status` / `status_from_meta` helpers. Sort order
+  in the sidebar is `doing → todo → blocked → done`, then by mtime
+  desc.
+- **Task tags.** Comma-separated `tags:` field in frontmatter,
+  normalised on write (trim / lowercase / dedupe). Up to three chips
+  per row plus a `+N` overflow chip. Footer dropdown filters the list
+  by a single tag (or "All tags"); selection is persisted in
+  `Prefs.tag_filter`. Helpers in `store.notes`: `get_tags` /
+  `set_tags` / `parse_tags`.
+- **Sprint status counts.** `store.sprints.status_counts(sprint_id)`
+  returns a zero-filled `{status: count}` map; the sprint bar shows
+  a dim subtitle like `3 doing · 5 todo · 2 blocked` (omitting
+  zero-buckets and `done`).
 - `store.notes.read_task` / `write_task` / `set_done` / `set_title` /
   `get_title` / `is_done` helpers, with a tiny built-in YAML-subset
-  frontmatter parser (no PyYAML dependency).
-- `Prefs.show_sidebar`, `Prefs.show_completed` — persisted across
-  daemon restarts.
+  frontmatter parser (no PyYAML dependency). `set_done` is now a
+  back-compat wrapper over `set_status`.
+- `Prefs.show_sidebar`, `Prefs.show_completed`, `Prefs.tag_filter` —
+  persisted across daemon restarts.
 - **Subtasks.** Each task can have an ordered list of subtasks stored
   in a JSON sidecar at `$XDG_DATA_HOME/devpane/subtasks/<stem>.json`.
   A new middle pane (sits between the task list and the editor, with

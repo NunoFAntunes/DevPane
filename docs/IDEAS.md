@@ -33,14 +33,18 @@ Optional `due:` in frontmatter; render overdue / today / soon visually in the ta
 - Complexity: 2
 - Scope: 2
 
-### A4. Tags / labels
-`tags: [bug, refactor, blocked]` in frontmatter. Filter / colour by tag. Cheap, very flexible — often replaces priority, status, and area at once.
+### A4. Tags / labels ✅ shipped
+`tags: bug, refactor` (comma-separated string) in frontmatter. Up to three
+chips per row in the sidebar, single-tag filter dropdown in the footer.
 - Usefulness: 5
 - Complexity: 2
 - Scope: 1
 
-### A5. Status beyond "done"
-Replace boolean `done` with a small enum: `todo / doing / blocked / done`. Show `doing` count per sprint; flag blocked tasks.
+### A5. Status beyond "done" ✅ shipped
+Boolean `done` replaced by `status: todo|doing|blocked|done`, surfaced as
+a clickable pill on each task row. Sprint bar shows per-status counts.
+Lazy migration: legacy `done:` is read with a fallback rule and rewritten
+on next mutation.
 - Usefulness: 4
 - Complexity: 2 — migration of existing files needed.
 - Scope: 1
@@ -247,7 +251,7 @@ Local-only JSON endpoint listing tasks/sprints. Lets a Polybar / Waybar widget s
 
 If picking a small, coherent v0.2 from this list:
 
-1. **A4 Tags** + **A5 Status enum** — biggest model upgrade per line of code.
+1. **A4 Tags** + **A5 Status enum** — ✅ shipped (Unreleased).
 2. **B1 Quick-add syntax** — preserves the drop-down ethos.
 3. **D1 Command palette** + **G1 Keyboard ops** — make power-use feel native.
 4. **E4 CLI surface** — unlocks shell / editor integrations without owning them.

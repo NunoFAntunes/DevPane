@@ -56,7 +56,8 @@ frontmatter block at the top of the file, delimited by `---` lines:
 ```markdown
 ---
 title: Buy milk
-done: false
+status: doing
+tags: errand, weekly
 created: 2026-05-22T18:30:00
 ---
 note body goes here
@@ -67,23 +68,39 @@ Recognized fields (all optional, string-valued):
 | Key | Meaning |
 |-----|---------|
 | `title` | Display name in the task sidebar. Defaults to the filename stem. |
-| `done` | `"true"` if the task is completed, `"false"` otherwise. Defaults to `"false"`. |
+| `status` | One of `todo`, `doing`, `blocked`, `done`. Defaults to `todo`. Replaces the older boolean `done:`; readers fall back to `done: true` → `done` when `status:` is absent, so legacy files keep working. |
+| `tags` | Comma-separated list (e.g. `bug, refactor`). Normalised on write: trimmed, lowercased, deduplicated. Empty value omits the key entirely. |
 | `created` | ISO-ish timestamp written when a task is created from the UI. Informational. |
 | `sprint` | ISO timestamp identifying the sprint this task belongs to. See **Sprints** below. |
 
 The parser (`store.notes._parse_frontmatter`) is deliberately minimal —
 flat `key: value` scalars only, with optional surrounding single or
-double quotes. A missing or malformed block is treated as no
-frontmatter, so plain pre-existing `.md` files keep working as undone
-tasks titled by their filename stem.
+double quotes. The comma-separated `tags:` encoding fits this scalar-
+only model without extending the parser. A missing or malformed block is
+treated as no frontmatter, so plain pre-existing `.md` files keep
+working as `todo` tasks titled by their filename stem.
 
 Helper functions in `store.notes`:
 
 - `read_task(name) -> (meta, body)` — parse on read.
 - `write_task(name, meta, body)` — atomic write with header.
-- `is_done(name)`, `get_title(name)` — convenience readers.
-- `set_done(name, bool)`, `set_title(name, str)` — preserve existing
-  fields and body.
+- `get_status(name) -> str`, `set_status(name, str)` — read/write the
+  status enum. Constants: `STATUS_TODO`, `STATUS_DOING`,
+  `STATUS_BLOCKED`, `STATUS_DONE`, with `STATUSES` listing all four.
+- `get_tags(name) -> list[str]`, `set_tags(name, list[str])`,
+  `parse_tags(csv) -> list[str]` — normalise on read and write.
+- `is_done(name)`, `set_done(name, bool)` — back-compat wrappers
+  delegating to `get_status` / `set_status`.
+- `get_title(name)`, `set_title(name, str)` — preserve existing fields
+  and body.
+
+### `done:` → `status:` migration
+
+The migration is **lazy**: untouched files keep their `done:` key and
+are read via the fallback rule above. The first write through
+`set_status` / `set_done` rewrites the frontmatter to use `status:` and
+drops the legacy `done:` key, so the codebase converges naturally
+without a one-shot rewrite pass.
 
 The editor only ever sees `body`; the autosave path reads the existing
 `meta` from disk and writes it back unchanged on every save, so manual
@@ -120,6 +137,9 @@ API in [`store/sprints.py`](../src/devpane/store/sprints.py):
 - `bootstrap_existing()` — one-shot: assign a sprint id to any
   un-sprinted task on disk (reuses the most recent existing id, or
   mints a new one if none exists). Called by the daemon at startup.
+- `status_counts(sprint_id) -> dict[str, int]` — zero-filled counts of
+  tasks in `sprint_id` bucketed by status. Drives the sprint-bar
+  subtitle (`3 doing · 5 todo · 2 blocked`).
 
 On `store.notes`:
 

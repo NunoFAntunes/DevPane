@@ -115,13 +115,28 @@ The pane uses an `Adw.OverlaySplitView` for the sidebar, and a
 - **Left sidebar** — a sprint bar above a task list:
   - [`ui/sprint_bar.py`](../src/devpane/ui/sprint_bar.py) — previous /
     next arrow buttons flanking the current sprint's display name.
-    Clicking the name opens a rename dialog.
+    A dim subtitle under the name shows non-zero status counts
+    (`3 doing · 5 todo · 2 blocked`); `done` is omitted because the
+    show-completed switch already addresses it. Clicking the name
+    opens a rename dialog.
   - [`ui/task_list.py`](../src/devpane/ui/task_list.py) — one row per
-    `.md` file belonging to the current sprint, with a checkbox for
-    the done state and a label showing the task title
+    `.md` file belonging to the current sprint. Each row has a
+    **status pill** ([`ui/status_pill.py`](../src/devpane/ui/status_pill.py))
+    showing one of `todo` / `doing` / `blocked` / `done` (click to
+    open a four-button popover and pick another), the task title
     (`meta['title']` from frontmatter, falling back to the filename
-    stem). Selecting a row opens that file in the editor. A footer
-    switch toggles whether completed tasks are listed.
+    stem), and up to three **tag chips** with a `+N` overflow chip.
+    Rows are sorted `doing → todo → blocked → done`, then by mtime
+    descending. Selecting a row opens that file in the editor.
+  - **Header `+`** is a toggle button. Pressing it reveals an inline
+    `Gtk.Revealer` form between header and list with name + tags
+    (comma-separated) entries and Cancel / Add buttons; Enter in
+    either field submits, Escape closes (capture-phase so the pane
+    stays open). `Ctrl+N` toggles the same form.
+  - **Footer** has a tag-filter `Gtk.DropDown` (populated from the
+    union of tags across the current sprint, plus a leading "All
+    tags" entry) and a compact, neutral `Gtk.Switch` (`.muted-switch`
+    CSS class) for show-completed.
 - **Right pane** — slim header with a sidebar-toggle button and the
   current task's title, then a horizontal `Gtk.Paned`:
   - **Middle: subtask panel** ([`ui/subtask_panel.py`](../src/devpane/ui/subtask_panel.py))
@@ -129,10 +144,16 @@ The pane uses an `Adw.OverlaySplitView` for the sidebar, and a
     checkbox, a click-to-edit `GtkEditableLabel` for the text, and a
     hover-visible 🗑 delete button. Rows are draggable for reordering
     (the drop indicator is a 2px accent-color underline / overline on
-    the target row). The whole list is persisted to a JSON sidecar at
+    the target row). A permanently-visible **phantom row** at the
+    bottom of the list ("Add subtask…") is the entry point for new
+    subtasks — click it (or any empty area below the rows) to start
+    editing; press Enter with non-empty text to promote it to a real
+    subtask, at which point focus jumps to a fresh phantom below for
+    chained entry. Empty commits are discarded. The whole list is
+    persisted to a JSON sidecar at
     `$XDG_DATA_HOME/devpane/subtasks/<task-stem>.json` on every
-    mutation. Empty-string commit removes the row, which means adding
-    a subtask and pressing Escape with no text simply cancels.
+    mutation. Existing rows still follow the same rule: empty-string
+    commit removes the row.
   - **Right: editor** — the existing `GtkSourceView`. Notes belong to
     the parent task only; subtasks don't have their own notes.
 
@@ -141,18 +162,21 @@ clamped to `[120, 600]` on load.
 
 | Control | Shortcut | Action |
 |---------|----------|--------|
-| ＋ new-task button | `Ctrl+N` | Create `note-YYYYMMDD-HHMM.md` (auto-suffixed on collisions) with `done: false` and the current sprint stamped into frontmatter, and select it. If no sprint exists yet, a new one is minted with the current timestamp. |
+| ＋ new-task toggle | `Ctrl+N` | Reveal the inline new-task form under the sidebar header. Enter in either field creates `note-YYYYMMDD-HHMM.md` (auto-suffixed on collisions) with `status: todo`, the typed `title` (omitted if blank), the typed `tags` (omitted if blank), and the current sprint stamped into frontmatter, then selects it and collapses the form. Escape closes the form without creating. If no sprint exists yet, a new one is minted with the current timestamp. |
 | Sidebar toggle | `Ctrl+B` | Show/hide the task list. Visibility is persisted in prefs. |
 | Previous / next sprint | `Alt+Left` / `Alt+Right` | Navigate to the adjacent sprint. Disabled at the chronological ends — sprints exist only when at least one task references them. Shortcuts are installed in capture phase so the editor's word-jump bindings don't swallow them. |
-| Show-completed switch | — | Hide done tasks (default) or list them at the bottom, dimmed and struck through. |
+| Status pill (on each row) | — | Click to open a popover and pick `todo` / `doing` / `blocked` / `done`. Updates the frontmatter, re-sorts the list, refreshes the sprint-bar counts, and applies strikethrough on `done`. |
+| Tag-filter dropdown | — | Footer dropdown listing the union of tags across the current sprint plus "All tags". Filters the visible rows; persisted across sessions in `Prefs.tag_filter`. |
+| Show-completed switch | — | Compact neutral switch (no accent colour). Hide done tasks (default) or list them at the bottom, dimmed and struck through. |
 | Row right-click | — | Context menu: **Rename** (frontmatter title only — the file is not renamed), **Move to next sprint** / **Move to previous sprint** (creates a new sprint dated now if migrating past the last existing one; "previous" is disabled at sprint 1), and **Delete** (`Adw.AlertDialog` confirmation; falls back to another task in the same sprint, then to an adjacent sprint, then to `scratch.md`. The task's subtask sidecar is removed in the same step). |
 | Task row progress | — | Tasks with subtasks show a dim `n/m` suffix next to the title (completed/total). Refreshed automatically whenever any subtask is mutated. |
-| (Escape key) | `Escape` | Hide the pane (flushing autosave first). |
+| (Escape key) | `Escape` | Hide the pane (flushing autosave first). Inside the new-task form, Escape closes the form instead. |
 
 Switching tasks always flushes the previous task's autosave before
-loading the new one. Toggling a checkbox writes `done: true|false` into
-the task's frontmatter and re-sorts the list (open tasks first by mtime
-desc, then completed tasks below if shown).
+loading the new one. Picking a new status from a row's pill writes
+`status: <value>` into the task's frontmatter (dropping any legacy
+`done:` key in the process) and re-sorts the list
+(`doing → todo → blocked → done`, then by mtime desc).
 
 ### Sprint lifecycle
 
@@ -195,8 +219,8 @@ position survives hide/show *and* daemon restart.
 
 **Last-open note + sprint.** `hide_pane()` persists the currently-loaded
 note name, the currently-viewed sprint id, the sidebar visibility, the
-show-completed switch state, and the subtask paned position into
-`$XDG_CONFIG_HOME/devpane/prefs.json`. On next startup the daemon picks
+show-completed switch state, the active tag filter, and the subtask
+paned position into `$XDG_CONFIG_HOME/devpane/prefs.json`. On next startup the daemon picks
 the last-viewed sprint (if it still has any tasks); otherwise it falls
 back to the newest existing sprint. The last note is loaded only if it
 still exists *and* belongs to the chosen sprint; otherwise the first
