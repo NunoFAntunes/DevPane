@@ -37,6 +37,7 @@ class Prefs:
     show_completed: bool = False
     current_sprint: str | None = None
     subtask_panel_width: int = 240
+    tag_filter: str | None = None
 
     @classmethod
     def load(cls) -> Prefs:
@@ -62,6 +63,7 @@ class Prefs:
                 else None
             ),
             subtask_panel_width=_clamp_panel(data.get("subtask_panel_width", 240)),
+            tag_filter=_coerce_tag_filter(data.get("tag_filter")),
         )
 
     def save(self) -> None:
@@ -78,6 +80,13 @@ def _clamp_ratio(v: object) -> float:
     except (TypeError, ValueError):
         return _DEFAULT_HEIGHT_RATIO
     return max(0.2, min(0.95, f))
+
+
+def _coerce_tag_filter(v: object) -> str | None:
+    if not isinstance(v, str):
+        return None
+    t = v.strip().lower()
+    return t or None
 
 
 def _clamp_panel(v: object) -> int:

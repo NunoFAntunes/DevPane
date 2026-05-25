@@ -124,6 +124,25 @@ def list_existing() -> list[Sprint]:
     return [Sprint(id=sid, name=name_for(sid, reg)) for sid in sorted(ids)]
 
 
+def status_counts(sprint_id: str) -> dict[str, int]:
+    """Return a ``{status: count}`` map for the tasks in ``sprint_id``.
+
+    Always returns one entry per known status (zero-filled), so callers
+    don't have to special-case missing keys. Tasks whose frontmatter can't
+    be read are silently skipped.
+    """
+    counts = {s: 0 for s in notes.STATUSES}
+    for name in notes.list_notes():
+        try:
+            meta, _ = notes.read_task(name)
+        except (OSError, notes.InvalidNoteName):
+            continue
+        if meta.get("sprint", "").strip() != sprint_id:
+            continue
+        counts[notes.status_from_meta(meta)] += 1
+    return counts
+
+
 def next_of(current_id: str | None, sprints: list[Sprint]) -> Sprint | None:
     if not sprints:
         return None

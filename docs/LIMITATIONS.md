@@ -116,13 +116,76 @@ GNOME may briefly mis-focus.
 
 **Scoped:** M6.
 
+## Tasks, sprints, subtasks
+
+### Subtasks have no body of their own
+
+**What.** A subtask is checkbox + text. It does not carry its own
+notes, frontmatter, or metadata. Markdown notes belong to the parent
+task only — they live in the task's `.md` file body.
+
+**Why.** Two-tier nesting (per-task notes + per-subtask notes) doubles
+the UI surface, the persistence layout, and the cursor / scroll
+bookkeeping. The intended use case is short lists of sub-actions.
+
+**Workaround.** If you really want notes per sub-item, create separate
+tasks for each.
+
+**Scoped:** Design choice, post-M8.
+
+### Cross-task drag-and-drop not supported
+
+**What.** Subtasks can be reordered inside the current task only. You
+can't drag a subtask onto a different task in the sidebar.
+
+**Why.** Cross-target drop targets in `Gtk.DragSource` would have to
+disambiguate "drop on the task row" vs "drop on the subtask list" and
+re-parent the row mid-drag. The use case is rare.
+
+**Workaround.** Delete on the source task; re-add on the destination.
+
+**Scoped:** Design choice, post-M8.
+
+### Sprints are emergent only — no empty sprint persistence
+
+**What.** A sprint exists if and only if at least one task references
+its id. Deleting / migrating away the last task in a sprint silently
+removes the sprint from the navigable list.
+
+**Why.** No separate sprints table means no schema migration, no
+cleanup logic for "orphan" sprints, no need to decide what an "empty
+sprint" UI looks like. The rename registry persists the *name* of any
+id, but if no task points at the id it's never surfaced.
+
+**Workaround.** None needed for normal use. If you want a sprint to
+"hold its place" while empty, keep a placeholder task in it.
+
+**Scoped:** Design choice, post-M8.
+
+### Task filename is fixed at creation
+
+**What.** Renaming a task changes the displayed title (frontmatter
+`title:`) but never the underlying filename. Files always stay as
+`note-YYYYMMDD-HHMM.md` (or `scratch.md`).
+
+**Why.** External tools, grep history, `git log`, and any user
+bookmarks would all break if filenames were mutable. Decoupling
+display from filename keeps history stable.
+
+**Workaround.** Rename via the filesystem (`mv`) while the daemon is
+stopped if you really want a different filename.
+
+**Scoped:** Design choice, post-M8.
+
 ## Persistence
 
 ### Prefs are JSON, not GSettings (still)
 
-**What.** User prefs (`height_ratio`, `last_note`, `animate`) are stored
-in `$XDG_CONFIG_HOME/devpane/prefs.json`, not read from GSettings —
-even though the GSettings schema is now shipped by the packaging.
+**What.** User prefs (`height_ratio`, `last_note`, `animate`,
+`show_sidebar`, `show_completed`, `current_sprint`,
+`subtask_panel_width`) are stored in `$XDG_CONFIG_HOME/devpane/prefs.json`,
+not read from GSettings — even though the GSettings schema is now
+shipped by the packaging.
 
 **Why.** Migrating the runtime to GSettings means the dev workflow
 (running from `src/`) breaks unless schemas are compiled locally and

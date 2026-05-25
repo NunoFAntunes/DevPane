@@ -127,3 +127,49 @@ def test_registry_with_garbage_is_ignored(xdg_tmp: Path) -> None:
     out = sprints.list_existing()
     # Falls back to default name silently.
     assert out[0].name == "2026-05-22"
+
+
+# ---- status_counts (A5) ---------------------------------------------------
+
+
+def test_status_counts_buckets_by_status(xdg_tmp: Path) -> None:
+    sid = "2026-05-22T18:30:45"
+    notes.write_task("a", {"sprint": sid, "status": notes.STATUS_DOING}, "")
+    notes.write_task("b", {"sprint": sid, "status": notes.STATUS_TODO}, "")
+    notes.write_task("c", {"sprint": sid, "status": notes.STATUS_TODO}, "")
+    notes.write_task("d", {"sprint": sid, "status": notes.STATUS_BLOCKED}, "")
+    notes.write_task("e", {"sprint": sid, "status": notes.STATUS_DONE}, "")
+    counts = sprints.status_counts(sid)
+    assert counts == {
+        notes.STATUS_TODO: 2,
+        notes.STATUS_DOING: 1,
+        notes.STATUS_BLOCKED: 1,
+        notes.STATUS_DONE: 1,
+    }
+
+
+def test_status_counts_zero_filled_for_missing_buckets(xdg_tmp: Path) -> None:
+    sid = "2026-05-22T18:30:45"
+    notes.write_task("a", {"sprint": sid, "status": notes.STATUS_TODO}, "")
+    counts = sprints.status_counts(sid)
+    assert counts[notes.STATUS_DOING] == 0
+    assert counts[notes.STATUS_BLOCKED] == 0
+    assert counts[notes.STATUS_DONE] == 0
+    assert counts[notes.STATUS_TODO] == 1
+
+
+def test_status_counts_ignores_other_sprints(xdg_tmp: Path) -> None:
+    sid = "2026-05-22T18:30:45"
+    other = "2026-06-22T18:30:45"
+    notes.write_task("a", {"sprint": sid, "status": notes.STATUS_DOING}, "")
+    notes.write_task("b", {"sprint": other, "status": notes.STATUS_DOING}, "")
+    assert sprints.status_counts(sid)[notes.STATUS_DOING] == 1
+
+
+def test_status_counts_respects_legacy_done(xdg_tmp: Path) -> None:
+    sid = "2026-05-22T18:30:45"
+    notes.write_task("legacy", {"sprint": sid, "done": "true"}, "")
+    notes.write_task("open", {"sprint": sid, "done": "false"}, "")
+    counts = sprints.status_counts(sid)
+    assert counts[notes.STATUS_DONE] == 1
+    assert counts[notes.STATUS_TODO] == 1

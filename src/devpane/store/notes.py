@@ -92,13 +92,26 @@ def delete(name: str) -> None:
 #
 # Tasks are notes with an optional YAML-like header delimited by ``---``
 # lines. Only flat ``key: value`` scalars are supported — enough for the
-# fields we need (``title``, ``done``, ``created``) and small enough to
-# parse without pulling in PyYAML.
+# fields we need (``title``, ``status``, ``tags``, ``created``) and small
+# enough to parse without pulling in PyYAML. ``tags`` is encoded as a
+# comma-separated string (``tags: bug, refactor``) so the scalar-only
+# parser handles it without extension.
 #
 # A note without a frontmatter block is a perfectly valid task: it reads
 # as ``({}, full_text)`` and displays with the filename stem as title.
 
 _FM_KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_-]*)\s*:\s*(.*)$")
+
+# Task status: a four-valued enum stored as ``status: <value>`` in the
+# frontmatter. Replaces the older boolean ``done:`` field; readers fall
+# back to ``done`` when ``status`` is absent so pre-existing notes keep
+# working without an upfront migration pass.
+STATUS_TODO = "todo"
+STATUS_DOING = "doing"
+STATUS_BLOCKED = "blocked"
+STATUS_DONE = "done"
+STATUSES: tuple[str, ...] = (STATUS_TODO, STATUS_DOING, STATUS_BLOCKED, STATUS_DONE)
+_STATUS_SET = frozenset(STATUSES)
 
 
 def _parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
@@ -155,9 +168,42 @@ def write_task(name: str, meta: dict[str, str], body: str) -> None:
     write_atomic(name, _serialize_frontmatter(meta, body))
 
 
-def is_done(name: str) -> bool:
+def status_from_meta(meta: dict[str, str]) -> str:
+    """Resolve a task's status, with lazy fallback to legacy ``done:``.
+
+    Rules:
+
+    - ``status`` field present and known → use it.
+    - else ``done: "true"`` → ``done``; otherwise ``todo``.
+    - unknown ``status`` string → ``todo`` (defensive).
+    """
+    raw = meta.get("status", "").strip().lower()
+    if raw in _STATUS_SET:
+        return raw
+    if meta.get("done", "").strip().lower() == "true":
+        return STATUS_DONE
+    return STATUS_TODO
+
+
+def get_status(name: str) -> str:
     meta, _ = read_task(name)
-    return meta.get("done", "").lower() == "true"
+    return status_from_meta(meta)
+
+
+def set_status(name: str, status: str) -> None:
+    if status not in _STATUS_SET:
+        raise ValueError(f"unknown status: {status!r}")
+    meta, body = read_task(name)
+    meta["status"] = status
+    # Drop the legacy ``done:`` key so we don't carry two sources of truth
+    # forward. This realises the "rewrite when next touched" half of the
+    # lazy migration: untouched files keep ``done:``; mutated ones converge.
+    meta.pop("done", None)
+    write_task(name, meta, body)
+
+
+def is_done(name: str) -> bool:
+    return get_status(name) == STATUS_DONE
 
 
 def get_title(name: str) -> str:
@@ -170,8 +216,39 @@ def get_title(name: str) -> str:
 
 
 def set_done(name: str, done: bool) -> None:
+    set_status(name, STATUS_DONE if done else STATUS_TODO)
+
+
+# ---- tags -----------------------------------------------------------------
+#
+# Tags are a comma-separated string in the frontmatter (``tags: bug,
+# refactor``). On read we split, strip, lowercase, drop empties, and dedupe
+# preserving first-seen order. On write we serialise back to the same form.
+
+def parse_tags(raw: str) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for part in raw.split(","):
+        t = part.strip().lower()
+        if not t or t in seen:
+            continue
+        seen.add(t)
+        out.append(t)
+    return out
+
+
+def get_tags(name: str) -> list[str]:
+    meta, _ = read_task(name)
+    return parse_tags(meta.get("tags", ""))
+
+
+def set_tags(name: str, tags: list[str]) -> None:
     meta, body = read_task(name)
-    meta["done"] = "true" if done else "false"
+    normalised = parse_tags(", ".join(tags))
+    if normalised:
+        meta["tags"] = ", ".join(normalised)
+    else:
+        meta.pop("tags", None)
     write_task(name, meta, body)
 
 

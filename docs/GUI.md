@@ -193,15 +193,30 @@ offset into the SQLite `notes.cursor_offset` column (migration
 current buffer length in case the file was truncated externally. The
 position survives hide/show *and* daemon restart.
 
-**Last-open note.** `hide_pane()` persists the currently-loaded note name
-into `$XDG_CONFIG_HOME/devpane/prefs.json`. On next startup the daemon
-opens that note if it still exists, falling back to `scratch.md`
-otherwise. Implementation: [`ui/prefs.py`](../src/devpane/ui/prefs.py).
+**Last-open note + sprint.** `hide_pane()` persists the currently-loaded
+note name, the currently-viewed sprint id, the sidebar visibility, the
+show-completed switch state, and the subtask paned position into
+`$XDG_CONFIG_HOME/devpane/prefs.json`. On next startup the daemon picks
+the last-viewed sprint (if it still has any tasks); otherwise it falls
+back to the newest existing sprint. The last note is loaded only if it
+still exists *and* belongs to the chosen sprint; otherwise the first
+visible task in that sprint is loaded, and as a final resort
+`scratch.md` is created and selected. Implementation:
+[`ui/prefs.py`](../src/devpane/ui/prefs.py) and
+[`ui/window.py`](../src/devpane/ui/window.py) (`_choose_initial_sprint`
+and the startup block in `__init__`).
 
 **Height ratio is also persisted** (default 0.6 of monitor height, clamped
 to 0.2–0.95). A future milestone can wire a resize handle to mutate it.
 
-**Multi-monitor.** M6 picks the first reported monitor. Following the
+**Subtask panel width** is persisted as `subtask_panel_width` (default
+240px, clamped 120–600). The Gtk.Paned separator between the subtask
+panel and the editor is dragged by the user; the value is read off
+`Paned.get_position()` on `hide_pane()`.
+
+### Multi-monitor
+
+M6 picks the first reported monitor. Following the
 cursor across monitors is not generally possible on Wayland without
 compositor-specific extensions; users on multi-monitor setups can
 configure their compositor to place DevPane on a specific output.

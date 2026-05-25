@@ -94,6 +94,8 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
             on_migrate_next=self._migrate_next,
             on_migrate_prev=self._migrate_prev,
             show_completed=self._prefs.show_completed,
+            tag_filter=self._prefs.tag_filter,
+            on_task_changed=self._refresh_sidebar,
         )
         self._sprint_bar = SprintBar(
             on_prev=self._sprint_prev,
@@ -198,6 +200,7 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
             self._prefs.last_note = self._editor.current_note
         self._prefs.show_sidebar = self._split.get_show_sidebar()
         self._prefs.show_completed = self._task_list.show_completed
+        self._prefs.tag_filter = self._task_list.tag_filter
         self._prefs.current_sprint = self._current_sprint
         self._prefs.subtask_panel_width = self._inner_paned.get_position()
         try:
@@ -270,7 +273,11 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         # this is the moment to create the first sprint.
         if self._current_sprint is None:
             self._current_sprint = sprints.new_sprint_id()
-        meta = {"created": created, "done": "false", "sprint": self._current_sprint}
+        meta = {
+            "created": created,
+            "status": notes.STATUS_TODO,
+            "sprint": self._current_sprint,
+        }
         notes.write_task(name, meta, "")
         _log.info("window: new task %s (sprint %s)", name, self._current_sprint)
         self._refresh_sidebar()
@@ -374,7 +381,12 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         if existing and (self._current_sprint is None
                          or not any(s.id == self._current_sprint for s in existing)):
             self._current_sprint = existing[-1].id
-        self._sprint_bar.set_state(existing, self._current_sprint)
+        counts = (
+            sprints.status_counts(self._current_sprint)
+            if self._current_sprint is not None
+            else None
+        )
+        self._sprint_bar.set_state(existing, self._current_sprint, counts)
         has_prev = sprints.prev_of(self._current_sprint, existing) is not None
         self._task_list.set_sprint(self._current_sprint, has_prev)
 

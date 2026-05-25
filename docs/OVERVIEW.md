@@ -6,6 +6,13 @@ hides and your notes are persisted to disk as plain markdown. It is modeled on
 [Guake](http://guake-project.org/)'s ergonomics — but for notes instead of a
 terminal — and built on a modern GTK4 + libadwaita stack.
 
+Beyond plain notes, DevPane organizes work as **tasks**: each `.md` file
+is a task with an optional title, done state, and subtasks. Tasks are
+grouped into **sprints** (chronological, emergent from frontmatter) and
+each task can have an ordered list of **subtasks** (checkbox + text) in
+a JSON sidecar. The UI is three columns — task list, subtasks, notes —
+all driven by the same files-first store.
+
 ## Why it exists
 
 Developers constantly need to capture small fragments — a command they just
@@ -72,6 +79,7 @@ Implementation follows the milestones in [PLAN.md](PLAN.md).
 | M6 — Polish + animations | ✅ done |
 | M7 — Distribution (packaging files) | ✅ done (not yet published to AUR/Flathub) |
 | M8 — Hardening + release | ✅ done |
+| Post-M8 — Tasks / sprints / subtasks (Unreleased) | ✅ shipped on `main` |
 
 For the storage layer's on-disk format and inspection commands, see
 [STORAGE.md](STORAGE.md). For the IPC protocol the CLI speaks to the daemon,

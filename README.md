@@ -3,9 +3,16 @@
 Linux drop-down notetaking pane for developers. Press a key, type, press the
 key again — your notes are saved as plain markdown.
 
-**Status:** alpha `v0.1.0` — functionally complete. M0–M8 done.
-Packaging files (Arch PKGBUILD, Flatpak manifest, systemd unit) are in
-[`packaging/`](packaging/) but not yet published to AUR / Flathub. See
+Each note is also a **task**: it gets a title, a done state, and an
+ordered list of **subtasks** (checkbox + text) shown in a middle pane
+between the task list and the editor. Tasks are grouped into **sprints**
+(chronological, emergent from frontmatter) and navigable with
+`Alt+Left` / `Alt+Right`.
+
+**Status:** alpha `v0.1.0` shipped (M0–M8 done); the task / sprint /
+subtask UI is on `main` as `Unreleased`. Packaging files (Arch PKGBUILD,
+Flatpak manifest, systemd unit) are in [`packaging/`](packaging/) but
+not yet published to AUR / Flathub. See
 [Overview](docs/OVERVIEW.md#project-status) for the milestone matrix and
 [CHANGELOG](CHANGELOG.md) for release notes.
 

@@ -1,8 +1,30 @@
 # DevPane — Hotkey Setup
 
-DevPane delegates global-hotkey registration to your desktop environment.
+DevPane delegates **global-hotkey registration** to your desktop
+environment — only the toggle-the-pane shortcut needs DE-level binding.
+All other DevPane shortcuts live inside the pane and are handled by GTK
+directly, no DE setup required.
+
 Bind `devpane-toggle` to a key of your choice (F12 is the recommended
 default).
+
+## In-pane shortcuts (handled by DevPane, not configurable in your DE)
+
+These work as soon as the pane is open — no setup needed. They cannot
+be rebound currently; the bindings are hard-coded in
+[`ui/window.py`](../src/devpane/ui/window.py).
+
+| Shortcut | Action |
+|----------|--------|
+| `Escape` | Hide the pane (flushes autosave first) |
+| `Ctrl+N` | Create a new task in the current sprint |
+| `Ctrl+B` | Toggle the task-list sidebar |
+| `Alt+Left` | Previous sprint (disabled at the first) |
+| `Alt+Right` | Next sprint (disabled at the last; sprints are emergent — only existing ones are reachable from here) |
+
+Shortcuts are installed in the capture phase so they win over the
+editor's own bindings (notably Alt+Left/Right, which GtkSourceView
+would otherwise consume for word-jump).
 
 ## GNOME (Wayland or X11)
 

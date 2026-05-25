@@ -33,15 +33,20 @@ problem.
 |-------|-------------|-----------------|
 | `daemon/app.py` | Everything — the single wire-up point | — |
 | `daemon/ipc.py` | Standard library only | UI, store |
-| `ui/*` | GTK, libadwaita, GtkSourceView | `platform/*`, `store/*`, `daemon/*` |
+| `ui/*` | GTK, libadwaita, GtkSourceView, `store/*` (notes / sprints / subtasks), `platform/adapter` Protocol | `daemon/*`, compositor-specific `platform/*` modules |
 | `platform/*` | GTK, compositor-specific libs (`gtk4-layer-shell`, `python-xlib`) | `ui/*`, `store/*`, `daemon/*` |
 | `store/*` | Standard library, `sqlite3` | GTK, IPC, UI |
 | `util/*` | Standard library only | Anything project-specific |
 
-The `ui/` layer takes callbacks in its constructor — it never imports IPC or
-storage directly. The `platform/` layer is the only place that touches
-compositor-specific code; everything else talks to a `PlatformAdapter`
-protocol and a `WindowMode` enum.
+The `ui/` layer reads from and writes to `store/*` directly — the store is
+the user's content (notes, frontmatter, sprint registry, subtask
+sidecars) and the editor / task list / sprint bar / subtask panel are
+the widgets that surface and mutate it. The `ui/` layer does *not*
+import the IPC layer or compositor-specific code: it talks to the
+daemon via callbacks and to platforms via the `PlatformAdapter`
+Protocol from `platform/adapter.py`. The concrete `platform/*` modules
+(`wayland_layer`, `wayland_plain`, `x11`) are only imported by the
+`pick_adapter()` factory.
 
 ## Window strategy
 

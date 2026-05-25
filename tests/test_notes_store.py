@@ -113,15 +113,102 @@ def test_write_task_empty_meta_writes_body_only(xdg_tmp: Path) -> None:
 
 
 def test_set_done_preserves_body_and_meta(xdg_tmp: Path) -> None:
+    # ``set_done`` is a thin wrapper over ``set_status`` for backwards
+    # compatibility — it writes ``status:`` and drops any legacy ``done:``.
     notes.write_task("t", {"title": "X"}, "body")
     notes.set_done("t", True)
     meta, body = notes.read_task("t")
     assert meta["title"] == "X"
-    assert meta["done"] == "true"
+    assert meta["status"] == notes.STATUS_DONE
+    assert "done" not in meta
     assert body == "body"
     assert notes.is_done("t") is True
     notes.set_done("t", False)
     assert notes.is_done("t") is False
+    meta, _ = notes.read_task("t")
+    assert meta["status"] == notes.STATUS_TODO
+
+
+# ---- status (A5) ----------------------------------------------------------
+
+
+def test_status_round_trip(xdg_tmp: Path) -> None:
+    notes.write_task("t", {"title": "X"}, "body")
+    for s in notes.STATUSES:
+        notes.set_status("t", s)
+        assert notes.get_status("t") == s
+
+
+def test_status_rejects_unknown_value(xdg_tmp: Path) -> None:
+    notes.write_task("t", {}, "")
+    with pytest.raises(ValueError):
+        notes.set_status("t", "nope")
+
+
+def test_status_lazy_fallback_from_legacy_done(xdg_tmp: Path) -> None:
+    # File predates the status enum and carries only ``done: true``.
+    notes.write_task("legacy_done", {"done": "true"}, "b")
+    assert notes.get_status("legacy_done") == notes.STATUS_DONE
+    # ``done: false`` and missing both default to ``todo``.
+    notes.write_task("legacy_open", {"done": "false"}, "b")
+    assert notes.get_status("legacy_open") == notes.STATUS_TODO
+    notes.write_task("bare", {}, "b")
+    assert notes.get_status("bare") == notes.STATUS_TODO
+
+
+def test_status_unknown_value_falls_back_to_todo(xdg_tmp: Path) -> None:
+    notes.write_task("t", {"status": "wat"}, "b")
+    assert notes.get_status("t") == notes.STATUS_TODO
+
+
+def test_set_status_drops_legacy_done_key(xdg_tmp: Path) -> None:
+    notes.write_task("t", {"done": "true", "title": "X"}, "body")
+    notes.set_status("t", notes.STATUS_DOING)
+    meta, _ = notes.read_task("t")
+    assert meta["status"] == notes.STATUS_DOING
+    assert "done" not in meta
+    assert meta["title"] == "X"
+
+
+def test_status_present_wins_over_legacy_done(xdg_tmp: Path) -> None:
+    # Defensive: if both keys are present, ``status:`` is canonical.
+    notes.write_task("t", {"done": "true", "status": "doing"}, "")
+    assert notes.get_status("t") == notes.STATUS_DOING
+
+
+# ---- tags (A4) ------------------------------------------------------------
+
+
+def test_tags_round_trip(xdg_tmp: Path) -> None:
+    notes.write_task("t", {}, "")
+    notes.set_tags("t", ["bug", "auth"])
+    raw = notes.read("t")
+    assert "tags: bug, auth" in raw
+    assert notes.get_tags("t") == ["bug", "auth"]
+
+
+def test_tags_normalised_on_write(xdg_tmp: Path) -> None:
+    notes.write_task("t", {}, "")
+    notes.set_tags("t", ["  Bug ", "AUTH", "bug", "", "auth"])
+    assert notes.get_tags("t") == ["bug", "auth"]
+
+
+def test_tags_empty_list_removes_field(xdg_tmp: Path) -> None:
+    notes.write_task("t", {"tags": "bug, auth"}, "")
+    notes.set_tags("t", [])
+    meta, _ = notes.read_task("t")
+    assert "tags" not in meta
+    assert notes.get_tags("t") == []
+
+
+def test_parse_tags_handles_csv_directly(xdg_tmp: Path) -> None:
+    assert notes.parse_tags("  bug , Auth, , bug ") == ["bug", "auth"]
+    assert notes.parse_tags("") == []
+
+
+def test_get_tags_missing_field(xdg_tmp: Path) -> None:
+    notes.write_task("t", {"title": "X"}, "")
+    assert notes.get_tags("t") == []
 
 
 def test_set_title_on_plain_note(xdg_tmp: Path) -> None:

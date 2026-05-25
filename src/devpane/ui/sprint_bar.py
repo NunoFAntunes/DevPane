@@ -18,9 +18,26 @@ gi.require_version("Adw", "1")
 
 from gi.repository import Adw, Gtk  # noqa: E402
 
+from devpane.store import notes  # noqa: E402
 from devpane.store.sprints import Sprint  # noqa: E402
 
+# Buckets to surface in the sprint-bar subtitle. ``done`` is omitted —
+# the ``show_completed`` switch in the task list footer already addresses
+# completed tasks and we'd rather keep the subtitle short.
+_COUNT_BUCKETS: tuple[tuple[str, str], ...] = (
+    (notes.STATUS_DOING, "doing"),
+    (notes.STATUS_TODO, "todo"),
+    (notes.STATUS_BLOCKED, "blocked"),
+)
+
 _log = logging.getLogger(__name__)
+
+
+def _format_counts(counts: dict[str, int] | None) -> str:
+    if not counts:
+        return ""
+    parts = [f"{counts[key]} {label}" for key, label in _COUNT_BUCKETS if counts.get(key, 0) > 0]
+    return " · ".join(parts)
 
 
 class SprintBar:
@@ -53,6 +70,17 @@ class SprintBar:
         self._name_btn.add_css_class("sprint-name")
         self._name_btn.set_tooltip_text("Click to rename sprint")
         self._name_btn.connect("clicked", lambda _b: self._open_rename())
+        name_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self._name_label = Gtk.Label(xalign=0.5)
+        self._name_label.add_css_class("heading")
+        self._name_label.set_ellipsize(3)  # PANGO_ELLIPSIZE_END
+        name_box.append(self._name_label)
+        self._counts_label = Gtk.Label(xalign=0.5)
+        self._counts_label.add_css_class("dim-label")
+        self._counts_label.add_css_class("sprint-counts")
+        self._counts_label.set_ellipsize(3)
+        name_box.append(self._counts_label)
+        self._name_btn.set_child(name_box)
         self.widget.append(self._name_btn)
 
         self._next_btn = Gtk.Button.new_from_icon_name("go-next-symbolic")
@@ -65,8 +93,13 @@ class SprintBar:
 
     # ---- public API ----------------------------------------------------
 
-    def set_state(self, sprints: list[Sprint], current_id: str | None) -> None:
-        """Replace the navigable sprints and the highlighted current id."""
+    def set_state(
+        self,
+        sprints: list[Sprint],
+        current_id: str | None,
+        counts: dict[str, int] | None = None,
+    ) -> None:
+        """Replace the navigable sprints, current id, and per-status counts."""
         self._sprints = sprints
         self._current_id = current_id
         if not sprints or current_id is None:
@@ -77,7 +110,9 @@ class SprintBar:
             self._render_empty()
             return
         current = sprints[idx]
-        self._name_btn.set_label(current.name)
+        self._name_label.set_label(current.name)
+        self._counts_label.set_label(_format_counts(counts))
+        self._counts_label.set_visible(bool(self._counts_label.get_label()))
         self._name_btn.set_sensitive(True)
         self._prev_btn.set_sensitive(idx > 0)
         self._next_btn.set_sensitive(idx + 1 < len(sprints))
@@ -89,7 +124,9 @@ class SprintBar:
     # ---- internals -----------------------------------------------------
 
     def _render_empty(self) -> None:
-        self._name_btn.set_label("No sprints")
+        self._name_label.set_label("No sprints")
+        self._counts_label.set_label("")
+        self._counts_label.set_visible(False)
         self._name_btn.set_sensitive(False)
         self._prev_btn.set_sensitive(False)
         self._next_btn.set_sensitive(False)

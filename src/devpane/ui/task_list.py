@@ -1,9 +1,9 @@
 """Task list sidebar — replaces the old header switcher popover.
 
-Each task is one note file. The row shows a checkbox (done state, stored
-in the note's frontmatter) and a title (``meta['title']`` or filename
-stem). Selecting a row opens its notes file in the editor. Right-click
-opens a context menu with Rename / Delete.
+Each task is one note file. The row shows a status pill (todo / doing /
+blocked / done, stored in the note's frontmatter), a title (``meta['title']``
+or filename stem), and optional tag chips. Selecting a row opens its notes
+file in the editor. Right-click opens a context menu with Rename / Delete.
 
 The store is the source of truth: every mutation calls back into
 ``devpane.store.notes`` and then ``refresh()`` re-reads from disk.
@@ -22,42 +22,67 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from devpane.store import notes, subtasks  # noqa: E402
+from devpane.ui.status_pill import StatusPill  # noqa: E402
 
 _log = logging.getLogger(__name__)
 
+# Sort order within a sprint: doing first, then todo, then blocked, then
+# done. Done sinks to the bottom — same intent as the old (done, -mtime)
+# tuple, just with finer-grained buckets for in-flight work.
+_STATUS_ORDER: dict[str, int] = {
+    notes.STATUS_DOING: 0,
+    notes.STATUS_TODO: 1,
+    notes.STATUS_BLOCKED: 2,
+    notes.STATUS_DONE: 3,
+}
+
+# Cap how many tag chips render inline before we collapse the tail into
+# a single ``+N`` chip. Avoids wrapping wide tag lists into the row.
+_MAX_TAG_CHIPS = 3
+
+_ALL_TAGS_LABEL = "All tags"
+
 
 class TaskRow(Gtk.ListBoxRow):  # type: ignore[misc]
-    """One task: checkbox + title label. Carries its note filename."""
+    """One task: status pill + title + tag chips. Carries its note filename."""
 
     def __init__(
         self,
         name: str,
         title: str,
-        done: bool,
+        status: str,
+        tags: list[str],
         progress: tuple[int, int],
-        on_toggle: Callable[[str, bool], None],
+        on_status: Callable[[str, str], None],
         on_context: Callable[[str, TaskRow, float, float], None],
     ) -> None:
         super().__init__()
         self._name = name
-        self._on_toggle = on_toggle
+        self._on_status = on_status
         self.add_css_class("task-row")
 
         box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         box.set_margin_top(2)
         box.set_margin_bottom(2)
 
-        self._check = Gtk.CheckButton()
-        self._check.set_active(done)
-        # Don't let the checkbox steal row activation focus styling.
-        self._check.set_focus_on_click(False)
-        self._check.connect("toggled", self._on_check_toggled)
-        box.append(self._check)
+        self._pill = StatusPill(status)
+        self._pill.connect("status-changed", self._on_pill_changed)
+        box.append(self._pill)
 
         self._label = Gtk.Label(label=title, xalign=0)
         self._label.set_hexpand(True)
         self._label.set_ellipsize(3)  # PANGO_ELLIPSIZE_END
         box.append(self._label)
+
+        if tags:
+            chips = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+            chips.add_css_class("task-tags")
+            for tag in tags[:_MAX_TAG_CHIPS]:
+                chips.append(_make_tag_chip(tag))
+            overflow = len(tags) - _MAX_TAG_CHIPS
+            if overflow > 0:
+                chips.append(_make_tag_chip(f"+{overflow}"))
+            box.append(chips)
 
         done_count, total = progress
         if total > 0:
@@ -67,7 +92,7 @@ class TaskRow(Gtk.ListBoxRow):  # type: ignore[misc]
             box.append(progress_label)
 
         self.set_child(box)
-        if done:
+        if status == notes.STATUS_DONE:
             self.add_css_class("task-done")
 
         # Right-click context menu.
@@ -80,8 +105,14 @@ class TaskRow(Gtk.ListBoxRow):  # type: ignore[misc]
     def name(self) -> str:
         return self._name
 
-    def _on_check_toggled(self, btn: Gtk.CheckButton) -> None:
-        self._on_toggle(self._name, btn.get_active())
+    def _on_pill_changed(self, _pill: StatusPill, status: str) -> None:
+        self._on_status(self._name, status)
+
+
+def _make_tag_chip(text: str) -> Gtk.Widget:
+    label = Gtk.Label(label=text)
+    label.add_css_class("task-tag")
+    return label
 
 
 class TaskList:
@@ -95,6 +126,8 @@ class TaskList:
         on_migrate_next: Callable[[str], None],
         on_migrate_prev: Callable[[str], None],
         show_completed: bool,
+        tag_filter: str | None = None,
+        on_task_changed: Callable[[], None] | None = None,
     ) -> None:
         self._on_select = on_select
         self._on_new = on_new
@@ -102,10 +135,17 @@ class TaskList:
         self._on_migrate_next = on_migrate_next
         self._on_migrate_prev = on_migrate_prev
         self._show_completed = show_completed
+        self._tag_filter = tag_filter
+        self._on_task_changed = on_task_changed
         self._suppress_select = False
         self._current: str | None = None
         self._current_sprint: str | None = None
         self._can_migrate_prev: bool = False
+        # Tag dropdown is rebuilt on every refresh from the union of tags
+        # in the visible sprint; suppress the resulting ``notify::selected``
+        # signal so the rebuild itself doesn't trigger a filter change.
+        self._suppress_tag_signal = False
+        self._tag_options: list[str] = []
 
         self.widget = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.widget.add_css_class("task-list")
@@ -135,16 +175,28 @@ class TaskList:
         scrolled.set_hexpand(True)
         self.widget.append(scrolled)
 
-        # --- footer: show-completed switch ------------------------------
-        footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        # --- footer: tag filter + show-completed switch -----------------
+        footer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         footer.add_css_class("task-list-footer")
+
+        tag_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        tag_label = Gtk.Label(label="Tag", xalign=0)
+        tag_row.append(tag_label)
+        self._tag_dropdown = Gtk.DropDown.new_from_strings([_ALL_TAGS_LABEL])
+        self._tag_dropdown.set_hexpand(True)
+        self._tag_dropdown.connect("notify::selected", self._on_tag_filter_changed)
+        tag_row.append(self._tag_dropdown)
+        footer.append(tag_row)
+
+        switch_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         footer_label = Gtk.Label(label="Show completed", xalign=0)
         footer_label.set_hexpand(True)
-        footer.append(footer_label)
+        switch_row.append(footer_label)
         self._show_switch = Gtk.Switch()
         self._show_switch.set_active(self._show_completed)
         self._show_switch.connect("notify::active", self._on_show_completed_changed)
-        footer.append(self._show_switch)
+        switch_row.append(self._show_switch)
+        footer.append(switch_row)
         self.widget.append(footer)
 
         # --- context menu (single popover, repositioned per row) --------
@@ -159,7 +211,11 @@ class TaskList:
         """Re-read tasks from disk and rebuild the list."""
         current = self._current
         self._clear_listbox()
-        rows: list[tuple[bool, float, str, str]] = []
+        # We need two passes through the sprint's tasks: one to collect
+        # every tag (so the dropdown lists tags even on rows the active
+        # filter is currently hiding), and one to materialise the rows.
+        sprint_tasks: list[tuple[str, dict[str, str], list[str], str, float]] = []
+        tag_universe: set[str] = set()
         for name in notes.list_notes():
             try:
                 meta, _ = notes.read_task(name)
@@ -169,20 +225,29 @@ class TaskList:
             sprint = meta.get("sprint", "").strip() or None
             if self._current_sprint is not None and sprint != self._current_sprint:
                 continue
-            done = meta.get("done", "").lower() == "true"
-            if done and not self._show_completed:
-                continue
-            title = meta.get("title", "").strip() or name[:-3]
+            tags = notes.parse_tags(meta.get("tags", ""))
+            tag_universe.update(tags)
+            status = notes.status_from_meta(meta)
             try:
                 mt = notes.mtime(name)
             except OSError:
                 mt = 0.0
-            rows.append((done, mt, title, name))
+            sprint_tasks.append((name, meta, tags, status, mt))
 
-        # Open tasks first (done flag asc), then by mtime desc.
-        rows.sort(key=lambda r: (r[0], -r[1]))
+        self._rebuild_tag_dropdown(sorted(tag_universe))
 
-        for done, _mt, title, name in rows:
+        rows: list[tuple[int, float, str, str, str, list[str]]] = []
+        for name, meta, tags, status, mt in sprint_tasks:
+            if status == notes.STATUS_DONE and not self._show_completed:
+                continue
+            if self._tag_filter is not None and self._tag_filter not in tags:
+                continue
+            title = meta.get("title", "").strip() or name[:-3]
+            rows.append((_STATUS_ORDER[status], -mt, title, name, status, tags))
+
+        rows.sort(key=lambda r: (r[0], r[1]))
+
+        for _order, _neg_mt, title, name, status, tags in rows:
             try:
                 prog = subtasks.progress(name)
             except OSError:
@@ -190,9 +255,10 @@ class TaskList:
             row = TaskRow(
                 name=name,
                 title=title,
-                done=done,
+                status=status,
+                tags=tags,
                 progress=prog,
-                on_toggle=self._on_check_toggle,
+                on_status=self._on_status_changed,
                 on_context=self._open_context_menu,
             )
             self._listbox.append(row)
@@ -246,6 +312,17 @@ class TaskList:
             self._show_switch.set_active(value)
         self.refresh()
 
+    @property
+    def tag_filter(self) -> str | None:
+        return self._tag_filter
+
+    def set_tag_filter(self, value: str | None) -> None:
+        v = (value or "").strip().lower() or None
+        if v == self._tag_filter:
+            return
+        self._tag_filter = v
+        self.refresh()
+
     # ---- internals -----------------------------------------------------
 
     def _clear_listbox(self) -> None:
@@ -270,15 +347,23 @@ class TaskList:
             self._current = row.name
             self._on_select(row.name)
 
-    def _on_check_toggle(self, name: str, done: bool) -> None:
+    def _on_status_changed(self, name: str, status: str) -> None:
         try:
-            notes.set_done(name, done)
-        except OSError as e:
-            _log.warning("task-list: set_done %s failed (%s)", name, e)
+            notes.set_status(name, status)
+        except (OSError, ValueError) as e:
+            _log.warning("task-list: set_status %s failed (%s)", name, e)
             return
-        # If we're hiding completed, the row should disappear; otherwise
-        # just restyle. Either way, a refresh is the simplest correct path.
-        GLib.idle_add(self._refresh_idle)
+        # A status change may move the row across the sort buckets, hide
+        # it (done + hide-completed), and updates the sprint counts in the
+        # sprint bar. Defer both to idle so the popover closes cleanly first.
+        GLib.idle_add(self._notify_task_changed_idle)
+
+    def _notify_task_changed_idle(self) -> bool:
+        if self._on_task_changed is not None:
+            self._on_task_changed()
+        else:
+            self.refresh()
+        return False
 
     def _refresh_idle(self) -> bool:
         self.refresh()
@@ -286,6 +371,50 @@ class TaskList:
 
     def _on_show_completed_changed(self, sw: Gtk.Switch, _pspec: object) -> None:
         self.set_show_completed(sw.get_active())
+
+    # ---- tag filter ----------------------------------------------------
+
+    def _rebuild_tag_dropdown(self, tags: list[str]) -> None:
+        # The Gtk.DropDown StringList model has no public clear method, so
+        # we rebuild the model whenever the universe of tags changes. The
+        # leading "All tags" entry maps to ``tag_filter == None``.
+        options = [_ALL_TAGS_LABEL, *tags]
+        if options == self._tag_options:
+            self._sync_dropdown_selection()
+            return
+        self._tag_options = options
+        self._suppress_tag_signal = True
+        try:
+            model = Gtk.StringList.new(options)
+            self._tag_dropdown.set_model(model)
+            self._sync_dropdown_selection()
+        finally:
+            self._suppress_tag_signal = False
+
+    def _sync_dropdown_selection(self) -> None:
+        if self._tag_filter is None or self._tag_filter not in self._tag_options:
+            target = 0
+            if self._tag_filter is not None:
+                # Filter refers to a tag that no longer exists in this
+                # sprint — collapse silently to "All tags".
+                self._tag_filter = None
+        else:
+            target = self._tag_options.index(self._tag_filter)
+        if self._tag_dropdown.get_selected() != target:
+            self._suppress_tag_signal = True
+            try:
+                self._tag_dropdown.set_selected(target)
+            finally:
+                self._suppress_tag_signal = False
+
+    def _on_tag_filter_changed(self, dropdown: Gtk.DropDown, _pspec: object) -> None:
+        if self._suppress_tag_signal:
+            return
+        idx = dropdown.get_selected()
+        if idx == 0 or idx >= len(self._tag_options):
+            self.set_tag_filter(None)
+        else:
+            self.set_tag_filter(self._tag_options[idx])
 
     # ---- context menu --------------------------------------------------
 

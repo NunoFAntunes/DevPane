@@ -100,11 +100,13 @@ DevPane/
 │       │   ├── dbus.py             # optional D-Bus surface
 │       │   └── single_instance.py  # lockfile + socket check
 │       │
-│       ├── ui/
+│       ├── ui/                    # post-M8: header.py removed; see below
 │       │   ├── __init__.py
 │       │   ├── window.py           # DropDownWindow (mode-aware)
 │       │   ├── editor.py           # GtkSourceView wrapper, md syntax
-│       │   ├── header.py           # title bar / note switcher
+│       │   ├── task_list.py        # post-M8: left sidebar (tasks)
+│       │   ├── sprint_bar.py       # post-M8: sprint nav above task list
+│       │   ├── subtask_panel.py    # post-M8: middle pane (subtasks)
 │       │   ├── animations.py       # slide-in/out helpers
 │       │   └── styles.css          # libadwaita theming overrides
 │       │
@@ -118,7 +120,9 @@ DevPane/
 │       ├── store/
 │       │   ├── __init__.py
 │       │   ├── paths.py            # XDG dir resolution
-│       │   ├── notes.py            # FS read/write, atomic save
+│       │   ├── notes.py            # FS read/write, atomic save, frontmatter parser
+│       │   ├── sprints.py          # post-M8: sprint discovery + rename registry
+│       │   ├── subtasks.py         # post-M8: per-task JSON sidecar store
 │       │   ├── index.py            # SQLite + FTS5
 │       │   └── migrations/
 │       │       └── 0001_init.sql
@@ -274,6 +278,8 @@ File on disk matches.
    `0` over 150ms ease-out; reverse on hide.
 2. Focus the editor on show; restore cursor position per-note.
 3. Multi-monitor: open on monitor under cursor (`Gdk.Display.get_monitor_at_surface`).
+   *Shipped as: first reported monitor; cursor-following requires compositor
+   extensions not generally available on Wayland. See [GUI.md](GUI.md#multi-monitor).*
 4. GSettings schema: persist last-open note, window height ratio.
 
 **Validate**: feel test — drop-down is snappy, cursor lands in editor, multi-
@@ -322,8 +328,9 @@ Run after M7 on each supported session:
    truth).
 6. **Crash resilience**: `kill -9 $(pgrep devpaned)` mid-edit → restart →
    content from last 2s autosave is present.
-7. **Multi-monitor**: move cursor to second monitor → toggle → pane opens on
-   that monitor.
+7. **Multi-monitor**: pane opens on the first reported monitor. Users on
+   multi-monitor setups configure their compositor to place DevPane on a
+   specific output.
 8. **Search** (CLI smoke): `devpane-toggle status` reports notes count matching
    `find ~/.local/share/devpane/notes -name '*.md' | wc -l`.
 
@@ -351,9 +358,79 @@ Run after M7 on each supported session:
 ## Out of Scope for v1 (tracked for v2)
 
 - Structured TODOs with due dates / priorities (v1 uses `- [ ]` checkboxes
-  rendered by the markdown view, no separate model).
+  rendered by the markdown view, no separate model). *Partially addressed
+  post-v0.1.0: see "Post-M8 task model" below.*
 - Encryption at rest.
 - Cloud sync (users can `git init` the notes dir today).
 - Plugin system.
 - Wayland portal-based global hotkey registration (delegating to DE shortcut
   settings is sufficient and more reliable for v1).
+
+---
+
+## Post-M8 task model (Unreleased)
+
+Built on top of the v0.1.0 markdown store, no schema migration required —
+each layer is optional metadata applied to existing notes.
+
+### Tasks (notes-as-tasks)
+- The header switcher popover from M5 (`Ctrl+K`) is replaced by a
+  **persistent collapsible left sidebar** ([`ui/task_list.py`](../src/devpane/ui/task_list.py)).
+  Each row = checkbox + title (from optional `title:` frontmatter,
+  falling back to filename stem).
+- Frontmatter parser added to [`store/notes.py`](../src/devpane/store/notes.py) —
+  minimal YAML-subset (flat `key: value`, no PyYAML dependency). Keys:
+  `title`, `done`, `created`.
+- Row context menu: **Rename** (frontmatter title only — filename never
+  changes), **Delete**, plus the sprint migration actions below.
+- New shortcut `Ctrl+B` toggles the sidebar; `Ctrl+K` removed.
+- Footer switch hides/shows completed tasks (default hidden).
+
+### Sprints
+- Tasks are grouped by an ISO-timestamp `sprint:` frontmatter field.
+  Sprints are **emergent** — they exist iff at least one task references
+  their id. See [`store/sprints.py`](../src/devpane/store/sprints.py).
+- New [`ui/sprint_bar.py`](../src/devpane/ui/sprint_bar.py) sits above
+  the task list: `‹ Sprint name ›`. Arrow buttons (`Alt+Left` /
+  `Alt+Right`) navigate. Clicking the name renames; overrides live in
+  `$XDG_DATA_HOME/devpane/sprints.json`. Default name = date portion
+  of id.
+- Context-menu entries **Move to next sprint** / **Move to previous
+  sprint** migrate the task; "next" past the last sprint mints a new
+  one with the current timestamp.
+- On daemon startup, `sprints.bootstrap_existing()` assigns any
+  un-sprinted note on disk to one shared sprint so legacy notes stay
+  visible.
+
+### Subtasks
+- Each task may have an ordered list of subtasks (text + done), stored
+  as a JSON sidecar at `$XDG_DATA_HOME/devpane/subtasks/<stem>.json`.
+- New [`ui/subtask_panel.py`](../src/devpane/ui/subtask_panel.py) sits
+  between the task list and the editor (`Gtk.Paned`, draggable
+  separator persisted in `Prefs.subtask_panel_width`). Each row =
+  checkbox + click-to-edit `Gtk.EditableLabel` + hover-visible 🗑.
+- Drag-to-reorder inside the current task's subtasks (GTK4 native
+  `Gtk.DragSource` / `Gtk.DropTarget` carrying the source index as
+  `GObject.Value(int)`).
+- Sidecars are removed by the task delete path so they never outlive
+  their parent.
+- Task-list rows show a dim `n/m` progress suffix when subtasks exist.
+
+### Storage additions
+```
+$XDG_DATA_HOME/devpane/
+├── notes/          # existing
+├── subtasks/       # new — one .json sidecar per task with subtasks
+├── sprints.json    # new — sprint name overrides (optional)
+└── index.sqlite    # existing
+```
+
+### Prefs additions
+- `show_sidebar: bool` — task sidebar visibility.
+- `show_completed: bool` — show or hide done tasks in the list.
+- `current_sprint: str | None` — last viewed sprint id.
+- `subtask_panel_width: int` — width of the subtask pane (clamped
+  120–600).
+
+See [GUI.md](GUI.md) for the UI walkthrough and [STORAGE.md](STORAGE.md)
+for the frontmatter / sidecar / registry schemas.
