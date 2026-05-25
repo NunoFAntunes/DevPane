@@ -26,6 +26,7 @@ from gi.repository import Adw, Gtk, GtkSource  # noqa: E402
 
 from devpane.store import index, notes  # noqa: E402
 from devpane.ui.autosave import AutoSaver  # noqa: E402
+from devpane.ui.slash_commands import SlashMenu  # noqa: E402
 
 _log = logging.getLogger(__name__)
 
@@ -56,6 +57,8 @@ class NoteEditor(Gtk.Box):  # type: ignore[misc]
         self._view.set_top_margin(12)
         self._view.set_bottom_margin(12)
         self._view.add_css_class("devpane-editor")
+
+        self._slash_menu = SlashMenu(self._view)
 
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_child(self._view)
