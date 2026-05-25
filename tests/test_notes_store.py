@@ -247,3 +247,16 @@ def test_set_title_empty_removes_field(xdg_tmp: Path) -> None:
     meta, _ = notes.read_task("t")
     assert "title" not in meta
     assert meta.get("done") == "false"
+
+
+def test_write_task_round_trips_title_and_tags(xdg_tmp: Path) -> None:
+    # Belt-and-braces for the new-task form's write path: a task created
+    # with both title and tags should survive the round trip through the
+    # public helpers.
+    notes.write_task(
+        "formed",
+        {"title": "Fix login", "tags": "bug, auth"},
+        "",
+    )
+    assert notes.get_title("formed") == "Fix login"
+    assert notes.get_tags("formed") == ["bug", "auth"]

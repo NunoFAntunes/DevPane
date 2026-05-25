@@ -121,7 +121,7 @@ class TaskList:
     def __init__(
         self,
         on_select: Callable[[str], None],
-        on_new: Callable[[], None],
+        on_create: Callable[[str, list[str]], None],
         on_delete: Callable[[str], None],
         on_migrate_next: Callable[[str], None],
         on_migrate_prev: Callable[[str], None],
@@ -130,7 +130,7 @@ class TaskList:
         on_task_changed: Callable[[], None] | None = None,
     ) -> None:
         self._on_select = on_select
-        self._on_new = on_new
+        self._on_create = on_create
         self._on_delete = on_delete
         self._on_migrate_next = on_migrate_next
         self._on_migrate_prev = on_migrate_prev
@@ -157,12 +157,20 @@ class TaskList:
         title.set_hexpand(True)
         title.add_css_class("heading")
         header.append(title)
-        new_btn = Gtk.Button.new_from_icon_name("list-add-symbolic")
-        new_btn.set_tooltip_text("New task (Ctrl+N)")
-        new_btn.add_css_class("flat")
-        new_btn.connect("clicked", lambda _b: self._on_new())
-        header.append(new_btn)
+        self._new_btn = Gtk.ToggleButton()
+        self._new_btn.set_icon_name("list-add-symbolic")
+        self._new_btn.set_tooltip_text("New task (Ctrl+N)")
+        self._new_btn.add_css_class("flat")
+        self._new_btn.connect("toggled", self._on_new_btn_toggled)
+        header.append(self._new_btn)
         self.widget.append(header)
+
+        # --- new-task form (Revealer between header and list) -----------
+        self._form = _NewTaskForm(
+            on_submit=self._on_form_submit,
+            on_cancel=self._close_new_form,
+        )
+        self.widget.append(self._form.widget)
 
         # --- list -------------------------------------------------------
         self._listbox = Gtk.ListBox()
@@ -193,6 +201,7 @@ class TaskList:
         footer_label.set_hexpand(True)
         switch_row.append(footer_label)
         self._show_switch = Gtk.Switch()
+        self._show_switch.add_css_class("muted-switch")
         self._show_switch.set_active(self._show_completed)
         self._show_switch.connect("notify::active", self._on_show_completed_changed)
         switch_row.append(self._show_switch)
@@ -323,6 +332,13 @@ class TaskList:
         self._tag_filter = v
         self.refresh()
 
+    def open_new_form(self) -> None:
+        """Slide the new-task form down and focus the name entry."""
+        if not self._new_btn.get_active():
+            self._new_btn.set_active(True)
+        else:
+            self._form.open()
+
     # ---- internals -----------------------------------------------------
 
     def _clear_listbox(self) -> None:
@@ -371,6 +387,24 @@ class TaskList:
 
     def _on_show_completed_changed(self, sw: Gtk.Switch, _pspec: object) -> None:
         self.set_show_completed(sw.get_active())
+
+    # ---- new-task form -------------------------------------------------
+
+    def _on_new_btn_toggled(self, btn: Gtk.ToggleButton) -> None:
+        if btn.get_active():
+            self._form.open()
+        else:
+            self._form.close()
+
+    def _close_new_form(self) -> None:
+        if self._new_btn.get_active():
+            self._new_btn.set_active(False)
+        else:
+            self._form.close()
+
+    def _on_form_submit(self, title: str, tags: list[str]) -> None:
+        self._on_create(title, tags)
+        self._close_new_form()
 
     # ---- tag filter ----------------------------------------------------
 
@@ -534,3 +568,93 @@ class TaskList:
         dialog.connect("response", _on_response)
         parent = self.widget.get_root()
         dialog.present(parent)
+
+
+class _NewTaskForm:
+    """Inline new-task form revealed under the sidebar header.
+
+    Name + comma-separated tags entries with Add / Cancel buttons. Enter
+    in either entry submits; Escape closes. Owned by the parent TaskList,
+    which controls reveal via ``open()`` / ``close()``.
+    """
+
+    def __init__(
+        self,
+        on_submit: Callable[[str, list[str]], None],
+        on_cancel: Callable[[], None],
+    ) -> None:
+        self._on_submit = on_submit
+        self._on_cancel = on_cancel
+
+        self.widget = Gtk.Revealer()
+        self.widget.set_transition_type(Gtk.RevealerTransitionType.SLIDE_DOWN)
+        self.widget.set_transition_duration(150)
+        self.widget.set_reveal_child(False)
+
+        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        body.add_css_class("new-task-form")
+
+        self._name_entry = Gtk.Entry()
+        self._name_entry.set_placeholder_text("Task name")
+        self._name_entry.set_activates_default(True)
+        self._name_entry.connect("activate", lambda _e: self._submit())
+        body.append(self._name_entry)
+
+        self._tags_entry = Gtk.Entry()
+        self._tags_entry.set_placeholder_text("Tags (comma-separated)")
+        self._tags_entry.set_activates_default(True)
+        self._tags_entry.connect("activate", lambda _e: self._submit())
+        body.append(self._tags_entry)
+
+        button_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        button_row.set_halign(Gtk.Align.END)
+        cancel_btn = Gtk.Button(label="Cancel")
+        cancel_btn.add_css_class("flat")
+        cancel_btn.connect("clicked", lambda _b: self._on_cancel())
+        button_row.append(cancel_btn)
+        add_btn = Gtk.Button(label="Add")
+        add_btn.add_css_class("suggested-action")
+        add_btn.connect("clicked", lambda _b: self._submit())
+        button_row.append(add_btn)
+        body.append(button_row)
+
+        self.widget.set_child(body)
+
+        # Escape closes the form. Capture phase so the window-level Esc
+        # (which hides the pane) doesn't fire while the form is open.
+        key = Gtk.EventControllerKey()
+        key.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        key.connect("key-pressed", self._on_key_pressed)
+        body.add_controller(key)
+
+    def open(self) -> None:
+        self._name_entry.set_text("")
+        self._tags_entry.set_text("")
+        self.widget.set_reveal_child(True)
+        # Focus after the reveal animation has started; idle dispatch
+        # ensures the entry is realised before ``grab_focus``.
+        GLib.idle_add(self._focus_idle)
+
+    def close(self) -> None:
+        self.widget.set_reveal_child(False)
+
+    def _focus_idle(self) -> bool:
+        self._name_entry.grab_focus()
+        return False
+
+    def _submit(self) -> None:
+        title = self._name_entry.get_text().strip()
+        tags = notes.parse_tags(self._tags_entry.get_text())
+        self._on_submit(title, tags)
+
+    def _on_key_pressed(
+        self,
+        _c: Gtk.EventControllerKey,
+        keyval: int,
+        _keycode: int,
+        _state: Gdk.ModifierType,
+    ) -> bool:
+        if keyval == Gdk.KEY_Escape and self.widget.get_reveal_child():
+            self._on_cancel()
+            return True
+        return False

@@ -161,6 +161,76 @@ class SubtaskRow(Gtk.ListBoxRow):  # type: ignore[misc]
             self.remove_css_class("drop-above")
 
 
+class PhantomSubtaskRow(Gtk.ListBoxRow):  # type: ignore[misc]
+    """Always-visible blank row at the bottom of the subtask list.
+
+    Clicking enters edit mode; pressing Enter with non-empty text promotes
+    the row to a real subtask (via the panel's commit callback) and the
+    panel rebuilds, focusing a fresh phantom below. Empty commits are
+    discarded.
+    """
+
+    def __init__(self, on_commit: Callable[[str], None]) -> None:
+        super().__init__()
+        self._on_commit = on_commit
+        self.add_css_class("subtask-row")
+        self.add_css_class("subtask-phantom")
+
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        box.set_margin_start(6)
+        box.set_margin_end(6)
+        box.set_margin_top(2)
+        box.set_margin_bottom(2)
+
+        self._label = Gtk.EditableLabel()
+        self._label.set_text("")
+        self._label.set_hexpand(True)
+        # ``EditableLabel`` collapses when empty; the size request keeps
+        # the click target visible at all times.
+        self._label.set_size_request(120, -1)
+        self._label.connect("notify::editing", self._on_editing_changed)
+        box.append(self._label)
+
+        hint = Gtk.Label(label="Add subtask…")
+        hint.add_css_class("dim-label")
+        hint.add_css_class("subtask-phantom-hint")
+        hint.set_hexpand(True)
+        hint.set_xalign(0)
+        self._hint = hint
+        box.append(hint)
+        # Toggle the hint vs the editable label so the user sees a
+        # placeholder until they click.
+        self._label.set_visible(False)
+
+        self.set_child(box)
+
+        # A single click anywhere on the row enters edit mode (the
+        # editable label only opens on its own click, which is awkward
+        # while it's hidden under the hint).
+        gesture = Gtk.GestureClick()
+        gesture.set_button(Gdk.BUTTON_PRIMARY)
+        gesture.connect("released", lambda *_a: self.start_editing())
+        self.add_controller(gesture)
+
+    def start_editing(self) -> None:
+        self._hint.set_visible(False)
+        self._label.set_visible(True)
+        self._label.set_text("")
+        self._label.start_editing()
+
+    def _on_editing_changed(self, label: Gtk.EditableLabel, _pspec: object) -> None:
+        if label.get_property("editing"):
+            return
+        text = label.get_text().strip()
+        # Whether or not the user typed anything, reset the visual state
+        # back to the hint. If they did type, the panel will rebuild us.
+        label.set_text("")
+        label.set_visible(False)
+        self._hint.set_visible(True)
+        if text:
+            self._on_commit(text)
+
+
 class SubtaskPanel:
     """Middle pane. Use ``.widget`` to embed."""
 
@@ -170,6 +240,7 @@ class SubtaskPanel:
         self._on_changed = on_changed
         self._task_name: str | None = None
         self._items: list[Subtask] = []
+        self._phantom: PhantomSubtaskRow | None = None
 
         self.widget = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.widget.add_css_class("subtask-panel")
@@ -181,11 +252,6 @@ class SubtaskPanel:
         title.add_css_class("heading")
         title.set_hexpand(True)
         header.append(title)
-        self._add_btn = Gtk.Button.new_from_icon_name("list-add-symbolic")
-        self._add_btn.add_css_class("flat")
-        self._add_btn.set_tooltip_text("Add subtask")
-        self._add_btn.connect("clicked", lambda _b: self._add())
-        header.append(self._add_btn)
         self.widget.append(header)
 
         # --- list -------------------------------------------------------
@@ -198,15 +264,14 @@ class SubtaskPanel:
         scrolled.set_hexpand(True)
         self.widget.append(scrolled)
 
-        # --- empty-state placeholder -----------------------------------
-        self._placeholder = Gtk.Label(label="No subtasks yet — click + to add")
-        self._placeholder.add_css_class("dim-label")
-        self._placeholder.set_wrap(True)
-        self._placeholder.set_margin_top(12)
-        self._placeholder.set_margin_bottom(12)
-        self._placeholder.set_margin_start(12)
-        self._placeholder.set_margin_end(12)
-        self._listbox.set_placeholder(self._placeholder)
+        # Click on the empty area below all rows starts editing the
+        # phantom. Row clicks bubble first and are absorbed by their own
+        # widgets (checkbox / EditableLabel), so this only catches clicks
+        # on the scrolled-window background.
+        gesture = Gtk.GestureClick()
+        gesture.set_button(Gdk.BUTTON_PRIMARY)
+        gesture.connect("released", self._on_background_clicked)
+        scrolled.add_controller(gesture)
 
         self._set_enabled(False)
 
@@ -226,7 +291,9 @@ class SubtaskPanel:
     # ---- internals -----------------------------------------------------
 
     def _set_enabled(self, enabled: bool) -> None:
-        self._add_btn.set_sensitive(enabled)
+        # Used to toggle the now-removed add button. Kept as a hook in case
+        # we later want to gate the phantom row's sensitivity too.
+        self._enabled = enabled
 
     def _rebuild(self) -> None:
         while True:
@@ -244,6 +311,11 @@ class SubtaskPanel:
                 on_drop=self._on_drop,
             )
             self._listbox.append(row)
+        # Phantom row always sits at the bottom — it's the entry point for
+        # adding new subtasks. Disabled when no task is loaded.
+        self._phantom = PhantomSubtaskRow(on_commit=self._on_phantom_commit)
+        self._phantom.set_sensitive(self._task_name is not None)
+        self._listbox.append(self._phantom)
 
     def _persist(self) -> None:
         if self._task_name is None:
@@ -256,41 +328,38 @@ class SubtaskPanel:
         if self._on_changed is not None:
             self._on_changed()
 
-    def _add(self) -> None:
-        if self._task_name is None:
+    def _on_phantom_commit(self, text: str) -> None:
+        """Promote a typed phantom entry into a real subtask and chain."""
+        if self._task_name is None or not text:
             return
-        self._items.append(Subtask(text="", done=False))
-        new_index = len(self._items) - 1
-        # Don't persist yet — empty rows are discarded if the user doesn't
-        # type anything. Just render and put focus into the new row.
+        self._items.append(Subtask(text=text, done=False))
+        self._persist()
         self._rebuild()
-        row = self._row_at(new_index)
-        if row is None:
+        # Focus the newly-rebuilt phantom so the user can keep typing.
+        phantom = self._phantom
+        if phantom is None:
             return
-        # ``start_editing()`` needs the widget realized + mapped to grab
-        # focus reliably; hooking the row's ``map`` signal is more
-        # robust than an idle callback.
-        if row.get_mapped():
-            row.start_editing()
+        if phantom.get_mapped():
+            phantom.start_editing()
         else:
             handler_id: list[int] = []
 
             def _once(_w: Gtk.Widget) -> None:
-                row.start_editing()
-                row.disconnect(handler_id[0])
+                phantom.start_editing()
+                phantom.disconnect(handler_id[0])
 
-            handler_id.append(row.connect("map", _once))
+            handler_id.append(phantom.connect("map", _once))
 
-    def _row_at(self, index: int) -> SubtaskRow | None:
-        child = self._listbox.get_first_child()
-        i = 0
-        while child is not None:
-            if isinstance(child, SubtaskRow):
-                if i == index:
-                    return child
-                i += 1
-            child = child.get_next_sibling()
-        return None
+    def _on_background_clicked(
+        self,
+        _g: Gtk.GestureClick,
+        _n: int,
+        _x: float,
+        _y: float,
+    ) -> None:
+        if self._task_name is None or self._phantom is None:
+            return
+        self._phantom.start_editing()
 
     def _on_toggle(self, index: int, done: bool) -> None:
         if 0 <= index < len(self._items):

@@ -126,6 +126,34 @@ window.devpane-window {
     opacity: 0.7;
 }
 
+/* New-task form (revealed under the sidebar header) */
+
+.new-task-form {
+    padding: 8px 12px;
+    border-bottom: 1px solid alpha(currentColor, 0.12);
+    background-color: alpha(currentColor, 0.04);
+}
+
+.new-task-form entry {
+    min-height: 28px;
+}
+
+/* Muted, compact switch (used by show-completed in the task-list footer) */
+
+switch.muted-switch {
+    min-width: 32px;
+    min-height: 18px;
+}
+
+switch.muted-switch slider {
+    min-width: 14px;
+    min-height: 14px;
+}
+
+switch.muted-switch:checked {
+    background-color: alpha(currentColor, 0.45);
+}
+
 /* Subtask panel (middle column) */
 
 .subtask-panel {
@@ -176,4 +204,17 @@ window.devpane-window {
 
 .subtask-row.drop-below {
     border-bottom-color: @accent_color;
+}
+
+.subtask-row.subtask-phantom {
+    opacity: 0.6;
+}
+
+.subtask-row.subtask-phantom:hover,
+.subtask-row.subtask-phantom:focus-within {
+    opacity: 1;
+}
+
+.subtask-phantom-hint {
+    padding: 2px 0;
 }

@@ -89,7 +89,7 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         self._current_sprint: str | None = None
         self._task_list = TaskList(
             on_select=self._switch_to,
-            on_new=self._new_task,
+            on_create=self._create_task,
             on_delete=self._delete_task,
             on_migrate_next=self._migrate_next,
             on_migrate_prev=self._migrate_prev,
@@ -240,7 +240,7 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
             self.hide_pane()
             return True
         if ctrl and keyval in (Gdk.KEY_n, Gdk.KEY_N):
-            self._new_task()
+            self._task_list.open_new_form()
             return True
         if ctrl and keyval in (Gdk.KEY_b, Gdk.KEY_B):
             self._sidebar_btn.set_active(not self._sidebar_btn.get_active())
@@ -257,7 +257,7 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
     def _on_sidebar_toggled(self, btn: Gtk.ToggleButton) -> None:
         self._split.set_show_sidebar(btn.get_active())
 
-    def _new_task(self) -> None:
+    def _create_task(self, title: str, tags: list[str]) -> None:
         # Format: note-YYYYMMDD-HHMM. Append a counter if it collides
         # within the same minute.
         stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
@@ -273,13 +273,23 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         # this is the moment to create the first sprint.
         if self._current_sprint is None:
             self._current_sprint = sprints.new_sprint_id()
-        meta = {
+        meta: dict[str, str] = {
             "created": created,
             "status": notes.STATUS_TODO,
             "sprint": self._current_sprint,
         }
+        if title:
+            meta["title"] = title
+        normalised = notes.parse_tags(", ".join(tags))
+        if normalised:
+            meta["tags"] = ", ".join(normalised)
         notes.write_task(name, meta, "")
-        _log.info("window: new task %s (sprint %s)", name, self._current_sprint)
+        _log.info(
+            "window: new task %s (sprint %s, tags=%s)",
+            name,
+            self._current_sprint,
+            normalised,
+        )
         self._refresh_sidebar()
         self._switch_to(name)
         self._editor.focus()
