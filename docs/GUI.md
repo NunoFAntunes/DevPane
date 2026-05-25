@@ -163,7 +163,7 @@ clamped to `[120, 600]` on load.
 | Control | Shortcut | Action |
 |---------|----------|--------|
 | ＋ new-task toggle | `Ctrl+N` | Reveal the inline new-task form under the sidebar header. Enter in either field creates `note-YYYYMMDD-HHMM.md` (auto-suffixed on collisions) with `status: todo`, the typed `title` (omitted if blank), the typed `tags` (omitted if blank), and the current sprint stamped into frontmatter, then selects it and collapses the form. Escape closes the form without creating. If no sprint exists yet, a new one is minted with the current timestamp. |
-| Sidebar toggle | `Ctrl+B` | Show/hide the task list. Visibility is persisted in prefs. |
+| Sidebar toggle | `F9` | Show/hide the task list. Visibility is persisted in prefs. |
 | Previous / next sprint | `Alt+Left` / `Alt+Right` | Navigate to the adjacent sprint. Disabled at the chronological ends — sprints exist only when at least one task references them. Shortcuts are installed in capture phase so the editor's word-jump bindings don't swallow them. |
 | Status pill (on each row) | — | Click to open a popover and pick `todo` / `doing` / `blocked` / `done`. Updates the frontmatter, re-sorts the list, refreshes the sprint-bar counts, and applies strikethrough on `done`. |
 | Tag-filter dropdown | — | Footer dropdown listing the union of tags across the current sprint plus "All tags". Filters the visible rows; persisted across sessions in `Prefs.tag_filter`. |

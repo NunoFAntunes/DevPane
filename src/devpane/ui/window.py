@@ -11,7 +11,7 @@ Keyboard bindings (window-local):
 
 - ``Escape``      hide the pane
 - ``Ctrl+N``      create a new task (auto-named) and switch to it
-- ``Ctrl+B``      toggle the task sidebar
+- ``F9``          toggle the task sidebar
 """
 
 from __future__ import annotations
@@ -113,7 +113,7 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
 
         self._sidebar_btn = Gtk.ToggleButton()
         self._sidebar_btn.set_icon_name("sidebar-show-symbolic")
-        self._sidebar_btn.set_tooltip_text("Toggle task list (Ctrl+B)")
+        self._sidebar_btn.set_tooltip_text("Toggle task list (F9)")
         self._sidebar_btn.set_active(self._prefs.show_sidebar)
         self._sidebar_btn.connect("toggled", self._on_sidebar_toggled)
         right_header.pack_start(self._sidebar_btn)
@@ -222,8 +222,8 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
 
     def _install_shortcuts(self) -> None:
         controller = Gtk.EventControllerKey()
-        # Capture phase: window-level chords (Esc, Ctrl+N/B, Alt+Arrow) must
-        # win over editor word-jump bindings on Alt+Left/Right.
+        # Capture phase: window-level chords (Esc, Ctrl+N, F9, Alt+Arrow)
+        # must win over editor word-jump bindings on Alt+Left/Right.
         controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
         controller.connect("key-pressed", self._on_key_pressed)
         self.add_controller(controller)
@@ -242,7 +242,11 @@ class DropDownWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         if ctrl and keyval in (Gdk.KEY_n, Gdk.KEY_N):
             self._task_list.open_new_form()
             return True
-        if ctrl and keyval in (Gdk.KEY_b, Gdk.KEY_B):
+        if keyval == Gdk.KEY_F9 and not (state & (
+            Gdk.ModifierType.CONTROL_MASK
+            | Gdk.ModifierType.ALT_MASK
+            | Gdk.ModifierType.SHIFT_MASK
+        )):
             self._sidebar_btn.set_active(not self._sidebar_btn.get_active())
             return True
         alt = bool(state & Gdk.ModifierType.ALT_MASK)

@@ -18,7 +18,7 @@ be rebound currently; the bindings are hard-coded in
 |----------|--------|
 | `Escape` | Hide the pane (flushes autosave first) |
 | `Ctrl+N` | Create a new task in the current sprint |
-| `Ctrl+B` | Toggle the task-list sidebar |
+| `F9` | Toggle the task-list sidebar |
 | `Alt+Left` | Previous sprint (disabled at the first) |
 | `Alt+Right` | Next sprint (disabled at the last; sprints are emergent — only existing ones are reachable from here) |
 
