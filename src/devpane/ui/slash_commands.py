@@ -106,6 +106,37 @@ def expand_insert(template: str, selection: str = "") -> tuple[str, int]:
     return text.replace("{cursor}", "", 1), cursor_pos
 
 
+def apply_template(buffer: Gtk.TextBuffer, template: str) -> None:
+    """Wrap the current selection with ``template`` (or insert at cursor).
+
+    Shared by the slash menu and the keyboard-shortcut handler. Reads the
+    current selection (visible chars only — what the user sees they get
+    wrapped), deletes it, then inserts the expanded template and places
+    the caret where ``{cursor}`` indicated.
+
+    The caller is expected to bracket this in
+    ``begin_user_action`` / ``end_user_action`` so any preceding edits
+    (e.g. the slash menu deleting its ``/word`` trigger) coalesce into
+    one undo step.
+    """
+    bounds = buffer.get_selection_bounds()
+    selection_text = ""
+    if bounds:
+        sel_start, sel_end = bounds
+        selection_text = buffer.get_text(sel_start, sel_end, False)
+        s = buffer.get_iter_at_mark(buffer.get_selection_bound())
+        e = buffer.get_iter_at_mark(buffer.get_insert())
+        if not s.equal(e):
+            buffer.delete(s, e)
+
+    text, cursor_offset = expand_insert(template, selection_text)
+    insert_iter = buffer.get_iter_at_mark(buffer.get_insert())
+    insert_pos = insert_iter.get_offset()
+    buffer.insert(insert_iter, text)
+    new_cursor = buffer.get_iter_at_offset(insert_pos + cursor_offset)
+    buffer.place_cursor(new_cursor)
+
+
 # ---- GTK integration ----
 
 
@@ -304,30 +335,12 @@ class SlashMenu:
         slash_iter = self._buffer.get_iter_at_mark(self._trigger_mark)
         cursor_iter = self._buffer.get_iter_at_mark(self._buffer.get_insert())
 
-        bounds = self._buffer.get_selection_bounds()
-        has_sel = bool(bounds)
-        selection_text = ""
-        if has_sel:
-            sel_start, sel_end = bounds
-            selection_text = self._buffer.get_text(sel_start, sel_end, False)
-
-        text, cursor_offset = expand_insert(cmd.insert, selection_text)
-
         self._mutating = True
         try:
             self._buffer.begin_user_action()
             try:
                 self._buffer.delete(slash_iter, cursor_iter)
-                if has_sel:
-                    s = self._buffer.get_iter_at_mark(self._buffer.get_selection_bound())
-                    e = self._buffer.get_iter_at_mark(self._buffer.get_insert())
-                    if not s.equal(e):
-                        self._buffer.delete(s, e)
-                insert_iter = self._buffer.get_iter_at_mark(self._buffer.get_insert())
-                insert_pos = insert_iter.get_offset()
-                self._buffer.insert(insert_iter, text)
-                new_cursor = self._buffer.get_iter_at_offset(insert_pos + cursor_offset)
-                self._buffer.place_cursor(new_cursor)
+                apply_template(self._buffer, cmd.insert)
             finally:
                 self._buffer.end_user_action()
         finally:

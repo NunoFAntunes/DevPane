@@ -26,6 +26,9 @@ from gi.repository import Adw, Gtk, GtkSource  # noqa: E402
 
 from devpane.store import index, notes  # noqa: E402
 from devpane.ui.autosave import AutoSaver  # noqa: E402
+from devpane.ui.keyboard_shortcuts import KeyboardShortcuts  # noqa: E402
+from devpane.ui.list_continuation import ListContinuation  # noqa: E402
+from devpane.ui.markdown_render import MarkdownRenderer  # noqa: E402
 from devpane.ui.slash_commands import SlashMenu  # noqa: E402
 
 _log = logging.getLogger(__name__)
@@ -59,6 +62,9 @@ class NoteEditor(Gtk.Box):  # type: ignore[misc]
         self._view.add_css_class("devpane-editor")
 
         self._slash_menu = SlashMenu(self._view)
+        self._list_continuation = ListContinuation(self._view)
+        self._shortcuts = KeyboardShortcuts(self._view)
+        self._renderer = MarkdownRenderer(self._buffer)
 
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_child(self._view)
@@ -106,6 +112,7 @@ class NoteEditor(Gtk.Box):  # type: ignore[misc]
         index.touch(self._conn, canon, body)
         saved_offset = index.get_cursor(self._conn, canon) if existed else 0
         self._loading = True
+        self._renderer.set_suppressed(True)
         try:
             self._buffer.set_text(body)
             # Clamp to the current buffer length — body length may have
@@ -114,6 +121,8 @@ class NoteEditor(Gtk.Box):  # type: ignore[misc]
             self._buffer.place_cursor(self._buffer.get_iter_at_offset(offset))
         finally:
             self._loading = False
+            self._renderer.set_suppressed(False)
+        self._renderer.rescan_all()
         self._current_note = canon
         _log.info("editor: loaded %s (%d bytes, cursor=%d)", canon, len(body), offset)
 
@@ -139,7 +148,12 @@ class NoteEditor(Gtk.Box):  # type: ignore[misc]
         if self._current_note is None:
             return
         start, end = self._buffer.get_bounds()
-        text = self._buffer.get_text(start, end, False)
+        # MUST pass include_hidden_chars=True: the live renderer hides
+        # markdown markers (`#`, `**`, …) when the cursor is elsewhere
+        # via an `invisible` tag. With False, those markers would be
+        # stripped from the saved file and the markdown source would
+        # silently lose its formatting on reload.
+        text = self._buffer.get_text(start, end, True)
         meta, _ = notes.read_task(self._current_note) if notes.exists(self._current_note) else ({}, "")
         notes.write_task(self._current_note, meta, text)
         index.touch(self._conn, self._current_note, text)
@@ -163,3 +177,6 @@ class NoteEditor(Gtk.Box):  # type: ignore[misc]
         scheme = GtkSource.StyleSchemeManager.get_default().get_scheme(scheme_name)
         if scheme is not None:
             self._buffer.set_style_scheme(scheme)
+        renderer = getattr(self, "_renderer", None)
+        if renderer is not None:
+            renderer.refresh_theme()
